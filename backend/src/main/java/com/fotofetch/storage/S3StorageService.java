@@ -39,13 +39,12 @@ public class S3StorageService {
 
     public String generatePresignedUploadUrl(String key, String contentType) {
         log.info("Generating presigned upload URL for key: {}, type: {}", key, contentType);
+        // Do not bind contentType into the presigned signature to avoid SignatureDoesNotMatch
+        // when browsers send variations (e.g., uppercase, charset, or browser-detected mime types).
+        // S3 will still preserve the Content-Type header passed by the browser in the PUT request.
         PutObjectRequest.Builder objectRequestBuilder = PutObjectRequest.builder()
                 .bucket(bucketName)
                 .key(key);
-
-        if (contentType != null && !contentType.isBlank()) {
-            objectRequestBuilder.contentType(contentType);
-        }
 
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
                 .signatureDuration(Duration.ofMinutes(presignedUrlExpirationMinutes))

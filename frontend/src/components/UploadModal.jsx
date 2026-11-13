@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, CheckCircle2, AlertCircle, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertCircle, X, Loader2, Image as ImageIcon, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Modal } from './Modal';
 import { photoApi } from '../api/photoApi';
 
@@ -59,12 +59,16 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
     try {
       // 1. Get presigned URLs for all files
       const presignRes = await photoApi.getPresignedUrls(eventId, selectedFiles);
-      const presignedUploads = presignRes.data.uploads; // [ { photoId, uploadUrl, s3Key, originalFilename } ]
+      const presignedUploads = presignRes?.data?.uploads || presignRes?.uploads || [];
+
+      if (!presignedUploads || presignedUploads.length === 0) {
+        throw new Error('No presigned upload URLs returned from backend.');
+      }
 
       // Initialize progress state
       const initialProgress = {};
       presignedUploads.forEach((u) => {
-        initialProgress[u.photoId] = { progress: 0, status: 'queued', filename: u.originalFilename };
+        initialProgress[u.photoId] = { progress: 0, status: 'queued', filename: u.originalFilename, error: null };
       });
       setUploadProgress(initialProgress);
 
@@ -101,9 +105,21 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
             successfulPhotoIds.push(item.photoId);
           } catch (err) {
             console.error('Direct S3 upload failed for:', item.originalFilename, err);
+            let reason = 'Upload failed';
+            if (err.message === 'Network Error' || !err.response) {
+              reason = 'CORS error / Network blocked';
+            } else if (err.response?.status === 403) {
+              reason = 'AWS 403 Forbidden (Check IAM / Bucket permissions)';
+            } else if (err.response?.status === 404) {
+              reason = 'S3 Bucket not found';
+            } else if (typeof err.response?.data === 'string' && err.response.data.includes('<Code>')) {
+              const match = err.response.data.match(/<Code>(.*?)<\/Code>/);
+              if (match) reason = match[1];
+            }
+
             setUploadProgress((prev) => ({
               ...prev,
-              [item.photoId]: { ...prev[item.photoId], status: 'failed' },
+              [item.photoId]: { ...prev[item.photoId], status: 'failed', error: reason },
             }));
           }
         }
@@ -121,17 +137,24 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
       if (successfulPhotoIds.length > 0) {
         setOverallStatus('Confirming uploads and queueing AI facial indexing...');
         await photoApi.confirmUploads(eventId, successfulPhotoIds);
-        setOverallStatus(`Successfully uploaded ${successfulPhotoIds.length} photos!`);
-      } else {
-        setOverallStatus('Upload completed with errors.');
-      }
 
-      setTimeout(() => {
+        if (successfulPhotoIds.length === presignedUploads.length) {
+          setOverallStatus(`Successfully uploaded all ${successfulPhotoIds.length} photos!`);
+          setTimeout(() => {
+            setIsUploading(false);
+            onUploadComplete();
+            resetState();
+            onClose();
+          }, 1500);
+        } else {
+          setOverallStatus(`Partially completed: ${successfulPhotoIds.length} uploaded, ${presignedUploads.length - successfulPhotoIds.length} failed.`);
+          setIsUploading(false);
+          onUploadComplete();
+        }
+      } else {
+        setOverallStatus('Upload failed: All photos failed to upload to AWS S3.');
         setIsUploading(false);
-        onUploadComplete();
-        resetState();
-        onClose();
-      }, 1500);
+      }
     } catch (err) {
       console.error('Upload process failed:', err);
       setOverallStatus(`Upload failed: ${err.message}`);
@@ -140,6 +163,9 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
   };
 
   const totalUploaded = Object.values(uploadProgress).filter((p) => p.status === 'completed').length;
+  const failedItems = Object.values(uploadProgress).filter((p) => p.status === 'failed');
+  const hasFailures = failedItems.length > 0;
+  const hasUploadProgress = Object.keys(uploadProgress).length > 0;
   const overallPercentage = selectedFiles.length > 0
     ? Math.round((totalUploaded / selectedFiles.length) * 100)
     : 0;
@@ -152,8 +178,8 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
       maxWidth="max-w-2xl"
     >
       <div className="space-y-5">
-        {/* Dropzone */}
-        {!isUploading && (
+        {/* Dropzone - shown when not started yet */}
+        {!isUploading && !hasUploadProgress && (
           <div
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
@@ -180,8 +206,8 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
           </div>
         )}
 
-        {/* Selected files preview list */}
-        {selectedFiles.length > 0 && !isUploading && (
+        {/* Selected files preview list - before upload */}
+        {selectedFiles.length > 0 && !hasUploadProgress && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>{selectedFiles.length} file(s) selected</span>
@@ -217,12 +243,18 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
           </div>
         )}
 
-        {/* Upload in progress UI */}
-        {isUploading && (
-          <div className="space-y-4 py-3">
+        {/* Upload Progress & Results UI */}
+        {hasUploadProgress && (
+          <div className="space-y-4 py-2">
             <div className="flex items-center justify-between text-xs font-medium">
-              <span className="text-brand-400 flex items-center gap-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span className={`flex items-center gap-2 ${hasFailures && !isUploading ? 'text-rose-400' : 'text-brand-400'}`}>
+                {isUploading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : hasFailures ? (
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                )}
                 {overallStatus}
               </span>
               <span className="text-slate-300">
@@ -231,12 +263,36 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
             </div>
 
             {/* Overall Progress Bar */}
-            <div className="w-full h-2.5 rounded-full bg-white/10 overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-brand-600 to-indigo-500 transition-all duration-300"
+                className={`h-full transition-all duration-300 ${
+                  hasFailures && !isUploading
+                    ? 'bg-gradient-to-r from-rose-500 to-amber-500'
+                    : 'bg-gradient-to-r from-brand-600 to-indigo-500'
+                }`}
                 style={{ width: `${overallPercentage}%` }}
               />
             </div>
+
+            {/* Diagnostic Alert Box on failure */}
+            {hasFailures && !isUploading && (
+              <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-rose-300">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>Direct S3 Upload Issue Detected ({failedItems.length} photo{failedItems.length > 1 ? 's' : ''} failed)</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">
+                  {failedItems.some((f) => f.error?.includes('CORS'))
+                    ? 'AWS S3 blocked the upload from your browser due to CORS policy. Ensure your S3 bucket has CORS enabled with AllowedOrigins: ["*"] and AllowedMethods: ["GET", "PUT", "POST", "HEAD"].'
+                    : failedItems.some((f) => f.error?.includes('403'))
+                    ? 'AWS returned 403 Forbidden. Verify that AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are added to your Render environment variables.'
+                    : 'Direct upload to AWS S3 failed. Check browser Developer Tools Console for network details.'}
+                </p>
+                <div className="pt-1 text-[11px] text-slate-400">
+                  💡 Follow <span className="font-mono text-brand-300">DEPLOYMENT.md</span> Section 3 to apply S3 CORS in AWS Console.
+                </div>
+              </div>
+            )}
 
             {/* Individual upload progress list */}
             <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
@@ -245,7 +301,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
                   key={id}
                   className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 border border-white/5 text-xs"
                 >
-                  <div className="truncate max-w-[65%] text-slate-300">
+                  <div className="truncate max-w-[60%] text-slate-300">
                     {info.filename}
                   </div>
                   <div className="flex items-center gap-2">
@@ -258,9 +314,16 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
                       </span>
                     )}
                     {info.status === 'failed' && (
-                      <span className="flex items-center gap-1 text-rose-400">
-                        <AlertCircle className="w-3.5 h-3.5" /> Failed
-                      </span>
+                      <div className="flex items-center gap-1.5 text-right">
+                        {info.error && (
+                          <span className="text-[10px] text-rose-300/80 max-w-[160px] truncate" title={info.error}>
+                            {info.error}
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1 text-rose-400 shrink-0 font-medium">
+                          <AlertCircle className="w-3.5 h-3.5" /> Failed
+                        </span>
+                      </div>
                     )}
                     {info.status === 'queued' && (
                       <span className="text-slate-500">Queued</span>
@@ -279,9 +342,20 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
             disabled={isUploading && overallPercentage < 100}
             className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
           >
-            Cancel
+            {hasFailures && !isUploading ? 'Close' : 'Cancel'}
           </button>
-          {!isUploading && (
+
+          {hasFailures && !isUploading && (
+            <button
+              onClick={resetState}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-200 bg-white/10 hover:bg-white/15 transition-all"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Try Again
+            </button>
+          )}
+
+          {!hasUploadProgress && !isUploading && (
             <button
               onClick={startUpload}
               disabled={selectedFiles.length === 0}

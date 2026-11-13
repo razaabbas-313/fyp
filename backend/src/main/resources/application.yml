@@ -39,7 +39,7 @@ fotofetch:
     access-key-id: ${AWS_ACCESS_KEY_ID:your_aws_access_key_id}
     secret-access-key: ${AWS_SECRET_ACCESS_KEY:your_aws_secret_access_key}
     s3:
-      bucket-name: ${AWS_S3_BUCKET:fotofetch-ai-photos}
+      bucket-name: ${AWS_S3_BUCKET:fotofetch-ai-photos-480836974477}
       presigned-url-expiration-minutes: 30
     rekognition:
       collection-prefix: fotofetch-event-

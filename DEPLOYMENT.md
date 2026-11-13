@@ -122,18 +122,17 @@ Because guests and photographers upload photos directly to S3 via presigned PUT 
 [
   {
     "AllowedHeaders": ["*"],
-    "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
-    "AllowedOrigins": [
-      "http://localhost:5173",
-      "https://*.vercel.app",
-      "https://your-custom-domain.com"
-    ],
+    "AllowedMethods": ["GET", "PUT", "POST", "HEAD", "DELETE"],
+    "AllowedOrigins": ["*"],
     "ExposeHeaders": ["ETag"],
     "MaxAgeSeconds": 3600
   }
 ]
 ```
 4. Click **Save changes**.
+
+> [!IMPORTANT]
+> **Why is this necessary?** The web app on Vercel uploads photos directly from the user's browser to AWS S3 using presigned PUT URLs for maximum speed and zero server bottleneck. If CORS is not configured in the AWS S3 Console, the browser will block the upload preflight `OPTIONS` request.
 
 ### IAM User Permissions
 Your AWS IAM credentials require the following AWS managed policies:
