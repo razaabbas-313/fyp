@@ -11,11 +11,12 @@ node_modules/
 dist/
 npm-debug.log*
 
-# Java / Maven
+# Java / Maven / Archives
 target/
 *.class
 *.jar
 *.war
+*.zip
 
 # IDEs
 .idea/

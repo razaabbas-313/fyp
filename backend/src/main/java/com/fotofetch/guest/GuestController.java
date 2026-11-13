@@ -10,6 +10,7 @@ import com.fotofetch.event.dto.PublicEventResponse;
 import com.fotofetch.photo.Photo;
 import com.fotofetch.photo.PhotoRepository;
 import com.fotofetch.photo.PhotoService;
+import com.fotofetch.photo.dto.PhotoResponse;
 import com.fotofetch.photo.dto.SearchMatchResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -41,6 +42,12 @@ public class GuestController {
     public ResponseEntity<ApiResponse<PublicEventResponse>> getPublicEvent(@PathVariable String publicId) {
         PublicEventResponse response = eventService.getPublicEvent(publicId);
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @GetMapping("/{publicId}/photos")
+    public ResponseEntity<ApiResponse<List<PhotoResponse>>> getPublicPhotos(@PathVariable String publicId) {
+        List<PhotoResponse> photos = photoService.getPublicPhotosForEvent(publicId);
+        return ResponseEntity.ok(ApiResponse.success(photos));
     }
 
     @PostMapping(value = "/{publicId}/search", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

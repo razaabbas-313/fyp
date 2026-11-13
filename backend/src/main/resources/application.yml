@@ -1,14 +1,14 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 spring:
   application:
     name: fotofetch-backend
   
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fotofetch}
+    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL:jdbc:postgresql://localhost:5432/fotofetch}}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:admin}
     driver-class-name: org.postgresql.Driver
     
   jpa:
@@ -35,11 +35,11 @@ fotofetch:
     expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
   
   aws:
-    region: ${AWS_REGION:us-east-1}
-    access-key-id: ${AWS_ACCESS_KEY_ID:AKIAIOSFODNN7EXAMPLE}
-    secret-access-key: ${AWS_SECRET_ACCESS_KEY:wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY}
+    region: ${AWS_REGION:ap-south-1}
+    access-key-id: ${AWS_ACCESS_KEY_ID:your_aws_access_key_id}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY:your_aws_secret_access_key}
     s3:
-      bucket-name: ${AWS_S3_BUCKET:fotofetch-photos-bucket}
+      bucket-name: ${AWS_S3_BUCKET:fotofetch-ai-photos}
       presigned-url-expiration-minutes: 30
     rekognition:
       collection-prefix: fotofetch-event-

@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -43,5 +44,32 @@ public class PhotoController {
             @AuthenticationPrincipal User user) {
         List<PhotoResponse> photos = photoService.getPhotosForEvent(eventId, user);
         return ResponseEntity.ok(ApiResponse.success(photos));
+    }
+
+    @DeleteMapping("/{photoId}")
+    public ResponseEntity<ApiResponse<Void>> deletePhoto(
+            @PathVariable UUID eventId,
+            @PathVariable UUID photoId,
+            @AuthenticationPrincipal User user) {
+        photoService.deletePhoto(eventId, photoId, user);
+        return ResponseEntity.ok(ApiResponse.success(null, "Photo deleted successfully"));
+    }
+
+    @PostMapping("/bulk-delete")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> bulkDeletePhotos(
+            @PathVariable UUID eventId,
+            @Valid @RequestBody BulkDeleteRequest request,
+            @AuthenticationPrincipal User user) {
+        int count = photoService.deletePhotosBulk(eventId, request.getPhotoIds(), user);
+        return ResponseEntity.ok(ApiResponse.success(Map.of("deletedCount", count), count + " photos deleted successfully"));
+    }
+
+    @DeleteMapping
+    public ResponseEntity<ApiResponse<Map<String, Object>>> bulkDeletePhotosWithDelete(
+            @PathVariable UUID eventId,
+            @Valid @RequestBody BulkDeleteRequest request,
+            @AuthenticationPrincipal User user) {
+        int count = photoService.deletePhotosBulk(eventId, request.getPhotoIds(), user);
+        return ResponseEntity.ok(ApiResponse.success(Map.of("deletedCount", count), count + " photos deleted successfully"));
     }
 }

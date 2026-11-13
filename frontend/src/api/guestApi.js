@@ -5,6 +5,10 @@ export const guestApi = {
     return api.get(`/public/events/${publicId}`);
   },
 
+  getEventPhotos: (publicId) => {
+    return api.get(`/public/events/${publicId}/photos`);
+  },
+
   searchBySelfie: (publicId, selfieBlob, threshold = 80) => {
     const formData = new FormData();
     formData.append('selfie', selfieBlob, 'selfie.jpg');

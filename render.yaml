@@ -1,0 +1,46 @@
+# =========================================================
+# Render Blueprint Specification for FotoFetch AI
+# Deploys:
+#   1. Managed PostgreSQL database (fotofetch-db)
+#   2. Spring Boot Web Service (fotofetch-backend)
+# =========================================================
+
+services:
+  - type: web
+    name: fotofetch-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Automatically wire Render managed PostgreSQL connection string
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fotofetch-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION_MS
+        value: 86400000
+      # AWS Configuration (fill in Render Dashboard Environment tab)
+      - key: AWS_REGION
+        value: ap-south-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_BUCKET
+        sync: false
+
+databases:
+  - name: fotofetch-db
+    plan: free
+    databaseName: fotofetch
+    user: fotofetch
+    region: oregon

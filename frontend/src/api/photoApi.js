@@ -21,6 +21,14 @@ export const photoApi = {
     return api.get(`/events/${eventId}/photos`);
   },
 
+  deletePhoto: (eventId, photoId) => {
+    return api.delete(`/events/${eventId}/photos/${photoId}`);
+  },
+
+  bulkDeletePhotos: (eventId, photoIds) => {
+    return api.post(`/events/${eventId}/photos/bulk-delete`, { photoIds });
+  },
+
   // Direct S3 upload without passing through backend
   uploadToS3: (presignedUrl, file, onProgress) => {
     return axios.put(presignedUrl, file, {

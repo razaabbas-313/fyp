@@ -12,9 +12,9 @@ import java.io.IOException;
 @Slf4j
 public class ThumbnailService {
 
-    private static final int MAX_WIDTH = 400;
-    private static final int MAX_HEIGHT = 400;
-    private static final double OUTPUT_QUALITY = 0.82;
+    private static final int MAX_WIDTH = 1024;
+    private static final int MAX_HEIGHT = 1024;
+    private static final double OUTPUT_QUALITY = 0.85;
 
     public byte[] generateThumbnail(byte[] originalBytes) throws IOException {
         log.info("Generating {}x{} JPEG thumbnail from {} bytes original", MAX_WIDTH, MAX_HEIGHT, originalBytes.length);

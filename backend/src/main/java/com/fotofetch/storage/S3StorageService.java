@@ -16,6 +16,8 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -106,12 +108,47 @@ public class S3StorageService {
     }
 
     public void deleteObject(String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
         log.info("Deleting S3 object: {}", key);
-        DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build();
+        try {
+            DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build();
 
-        s3Client.deleteObject(deleteObjectRequest);
+            s3Client.deleteObject(deleteObjectRequest);
+        } catch (Exception ex) {
+            log.warn("Failed to delete S3 object {}: {}", key, ex.getMessage());
+        }
+    }
+
+    public void deleteObjects(List<String> keys) {
+        if (keys == null || keys.isEmpty()) {
+            return;
+        }
+
+        List<ObjectIdentifier> objects = keys.stream()
+                .filter(k -> k != null && !k.isBlank())
+                .map(k -> ObjectIdentifier.builder().key(k).build())
+                .collect(Collectors.toList());
+
+        if (objects.isEmpty()) {
+            return;
+        }
+
+        log.info("Batch deleting {} objects from S3 bucket: {}", objects.size(), bucketName);
+        try {
+            DeleteObjectsRequest deleteRequest = DeleteObjectsRequest.builder()
+                    .bucket(bucketName)
+                    .delete(Delete.builder().objects(objects).quiet(true).build())
+                    .build();
+
+            s3Client.deleteObjects(deleteRequest);
+            log.info("Successfully deleted {} objects from S3", objects.size());
+        } catch (Exception ex) {
+            log.warn("Failed batch delete in S3: {}", ex.getMessage());
+        }
     }
 }

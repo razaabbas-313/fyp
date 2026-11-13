@@ -11,8 +11,11 @@ import software.amazon.awssdk.services.rekognition.RekognitionClient;
 import software.amazon.awssdk.services.rekognition.model.*;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -141,6 +144,50 @@ public class RekognitionService {
         } catch (Exception ex) {
             log.error("Rekognition search failed for collection: {}", collectionId, ex);
             throw new RuntimeException("Facial recognition search failed: " + ex.getMessage(), ex);
+        }
+    }
+
+    public void deleteFacesForPhotos(String collectionId, Collection<UUID> photoIds) {
+        if (photoIds == null || photoIds.isEmpty() || collectionId == null || collectionId.isBlank()) {
+            return;
+        }
+
+        try {
+            Set<String> photoIdStrings = photoIds.stream().map(UUID::toString).collect(Collectors.toSet());
+            List<String> faceIdsToDelete = new ArrayList<>();
+            String nextToken = null;
+
+            do {
+                ListFacesRequest listRequest = ListFacesRequest.builder()
+                        .collectionId(collectionId)
+                        .maxResults(4096)
+                        .nextToken(nextToken)
+                        .build();
+
+                ListFacesResponse listResponse = rekognitionClient.listFaces(listRequest);
+                if (listResponse.faces() != null) {
+                    for (Face face : listResponse.faces()) {
+                        if (face.externalImageId() != null && photoIdStrings.contains(face.externalImageId())) {
+                            faceIdsToDelete.add(face.faceId());
+                        }
+                    }
+                }
+                nextToken = listResponse.nextToken();
+            } while (nextToken != null && !nextToken.isEmpty());
+
+            if (!faceIdsToDelete.isEmpty()) {
+                DeleteFacesRequest deleteFacesRequest = DeleteFacesRequest.builder()
+                        .collectionId(collectionId)
+                        .faceIds(faceIdsToDelete)
+                        .build();
+
+                rekognitionClient.deleteFaces(deleteFacesRequest);
+                log.info("Deleted {} face(s) from Rekognition collection: {}", faceIdsToDelete.size(), collectionId);
+            }
+        } catch (ResourceNotFoundException ex) {
+            log.warn("Rekognition collection not found: {}", collectionId);
+        } catch (Exception ex) {
+            log.warn("Could not delete faces from Rekognition collection {}: {}", collectionId, ex.getMessage());
         }
     }
 }

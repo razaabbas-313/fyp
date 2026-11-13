@@ -321,3 +321,5 @@ Follow this checklist to demonstrate the full application for your final year pr
 - **AWS Free Tier / Costs**: AWS Rekognition provides 5,000 free face search API calls per month for the first 12 months. Ensure you monitor your AWS billing console.
 - **Unsupported Image Formats**: Rekognition supports PNG and JPEG. Non-standard RAW formats (e.g. `.CR2`, `.NEF`) should be exported as JPG before upload.
 - **Extreme Angle / Occlusion**: As with all computer vision systems, faces turned more than 45 degrees or heavily covered by sunglasses/masks may exhibit lower match confidence.
+#   f y p  
+ 

@@ -7,13 +7,13 @@ import com.fotofetch.event.Event;
 import com.fotofetch.event.EventService;
 import com.fotofetch.photo.dto.*;
 import com.fotofetch.storage.S3StorageService;
-import com.fotofetch.storage.ThumbnailService;
 import com.fotofetch.user.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,8 +26,8 @@ public class PhotoService {
     private final PhotoRepository photoRepository;
     private final EventService eventService;
     private final S3StorageService s3StorageService;
-    private final ThumbnailService thumbnailService;
     private final RekognitionService rekognitionService;
+    private final PhotoProcessingService photoProcessingService;
 
     @Transactional
     public PresignResponse createPresignedUploads(UUID eventId, PresignRequest request, User user) {
@@ -54,9 +54,11 @@ public class PhotoService {
                     .thumbnailStatus(ThumbnailStatus.PENDING)
                     .indexingStatus(IndexingStatus.PENDING)
                     .facesFound(0)
+                    .isNew(true)
                     .build();
 
             photosToSave.add(photo);
+            event.getPhotos().add(photo);
 
             uploadItems.add(PresignResponse.PresignedFile.builder()
                     .photoId(photoId)
@@ -67,7 +69,8 @@ public class PhotoService {
         }
 
         photoRepository.saveAll(photosToSave);
-        log.info("Generated {} presigned upload URLs for event: {}", uploadItems.size(), eventId);
+        photoRepository.flush();
+        log.info("Persisted and flushed {} photo records with assigned UUIDs for event: {}", photosToSave.size(), eventId);
 
         return PresignResponse.builder()
                 .uploads(uploadItems)
@@ -79,68 +82,55 @@ public class PhotoService {
         Event event = eventService.getEventEntityByIdAndUser(eventId, user);
         String collectionId = event.getRekognitionCollectionId();
 
+        int updatedCount = 0;
+        List<UUID> confirmedPhotoIds = new ArrayList<>();
+
         for (UUID photoId : request.getPhotoIds()) {
-            Photo photo = photoRepository.findByIdAndEventId(photoId, eventId)
-                    .orElse(null);
+            log.info("Looking for photo: {} in event: {}", photoId, eventId);
 
-            if (photo != null) {
-                photo.setUploadStatus(UploadStatus.UPLOADED);
-                photoRepository.save(photo);
-                // Trigger async processing for thumbnail & Rekognition indexing
-                processPhotoAsync(photo.getId(), collectionId);
+            Optional<Photo> photoOptional = photoRepository.findByIdAndEventId(photoId, eventId);
+
+            if (photoOptional.isEmpty()) {
+                log.error("PHOTO NOT FOUND: {} for event: {}", photoId, eventId);
+                continue;
             }
-        }
-        log.info("Confirmed {} uploads for event: {}", request.getPhotoIds().size(), eventId);
-    }
 
-    @Async("photoProcessingExecutor")
-    public void processPhotoAsync(UUID photoId, String collectionId) {
-        log.info("Starting background processing for photo: {}", photoId);
-        Photo photo = photoRepository.findById(photoId).orElse(null);
-        if (photo == null) {
-            log.warn("Photo {} not found for background processing", photoId);
-            return;
-        }
+            Photo photo = photoOptional.get();
 
-        // 1. Thumbnail generation
-        try {
-            photo.setThumbnailStatus(ThumbnailStatus.PROCESSING);
+            log.info("Photo found: {}. Current upload status: {}", photo.getId(), photo.getUploadStatus());
+
+            photo.setUploadStatus(UploadStatus.UPLOADED);
             photoRepository.save(photo);
 
-            byte[] originalBytes = s3StorageService.getObjectBytes(photo.getOriginalS3Key());
-            byte[] thumbnailBytes = thumbnailService.generateThumbnail(originalBytes);
-
-            String thumbnailKey = String.format("events/%s/thumbnails/%s.jpg", photo.getEvent().getId(), photoId);
-            s3StorageService.uploadThumbnail(thumbnailKey, thumbnailBytes);
-
-            photo.setThumbnailS3Key(thumbnailKey);
-            photo.setThumbnailStatus(ThumbnailStatus.COMPLETED);
-            photoRepository.save(photo);
-            log.info("Thumbnail generated and uploaded for photo: {}", photoId);
-        } catch (Exception ex) {
-            log.error("Failed to generate thumbnail for photo: {}", photoId, ex);
-            photo.setThumbnailStatus(ThumbnailStatus.FAILED);
-            photoRepository.save(photo);
+            log.info("Upload status updated to UPLOADED for photo: {}", photoId);
+            updatedCount++;
+            confirmedPhotoIds.add(photo.getId());
         }
 
-        // 2. AWS Rekognition face indexing
-        try {
-            photo.setIndexingStatus(IndexingStatus.INDEXING);
-            photoRepository.save(photo);
+        photoRepository.flush();
 
-            int facesCount = rekognitionService.indexPhotoFaces(collectionId, photo.getId(), photo.getOriginalS3Key());
-            photo.setFacesFound(facesCount);
-            if (facesCount > 0) {
-                photo.setIndexingStatus(IndexingStatus.COMPLETED);
+        log.info(
+                "Upload confirmation finished. Requested: {}, Successfully updated: {}",
+                request.getPhotoIds().size(),
+                updatedCount
+        );
+
+        // Ensure asynchronous processing starts strictly AFTER the database transaction commits
+        if (!confirmedPhotoIds.isEmpty()) {
+            if (TransactionSynchronizationManager.isActualTransactionActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        for (UUID confirmedId : confirmedPhotoIds) {
+                            photoProcessingService.processPhotoAsync(confirmedId, collectionId);
+                        }
+                    }
+                });
             } else {
-                photo.setIndexingStatus(IndexingStatus.NO_FACES_DETECTED);
+                for (UUID confirmedId : confirmedPhotoIds) {
+                    photoProcessingService.processPhotoAsync(confirmedId, collectionId);
+                }
             }
-            photoRepository.save(photo);
-            log.info("Rekognition indexed {} face(s) for photo: {}", facesCount, photoId);
-        } catch (Exception ex) {
-            log.error("Failed to index faces for photo: {}", photoId, ex);
-            photo.setIndexingStatus(IndexingStatus.FAILED);
-            photoRepository.save(photo);
         }
     }
 
@@ -150,6 +140,16 @@ public class PhotoService {
         eventService.getEventEntityByIdAndUser(eventId, user);
         return photoRepository.findByEventIdOrderByCreatedAtDesc(eventId)
                 .stream()
+                .map(this::mapToPhotoResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<PhotoResponse> getPublicPhotosForEvent(String publicId) {
+        Event event = eventService.getEventEntityByPublicId(publicId);
+        return photoRepository.findByEventIdOrderByCreatedAtDesc(event.getId())
+                .stream()
+                .filter(p -> p.getUploadStatus() == UploadStatus.UPLOADED)
                 .map(this::mapToPhotoResponse)
                 .collect(Collectors.toList());
     }
@@ -198,8 +198,10 @@ public class PhotoService {
         List<SearchMatchResponse> responseList = new ArrayList<>();
         for (Photo photo : matchedPhotos) {
             Float similarity = bestSimilarityMap.get(photo.getId());
-            String thumbKey = photo.getThumbnailS3Key() != null ? photo.getThumbnailS3Key() : photo.getOriginalS3Key();
-            String thumbUrl = s3StorageService.generatePresignedDownloadUrl(thumbKey, null);
+            String thumbUrl = null;
+            if (photo.getThumbnailS3Key() != null) {
+                thumbUrl = s3StorageService.generatePresignedDownloadUrl(photo.getThumbnailS3Key(), null);
+            }
             String downloadUrl = s3StorageService.generatePresignedDownloadUrl(photo.getOriginalS3Key(), photo.getOriginalFilename());
 
             responseList.add(SearchMatchResponse.builder()
@@ -222,12 +224,10 @@ public class PhotoService {
         String thumbUrl = null;
         if (photo.getThumbnailS3Key() != null) {
             thumbUrl = s3StorageService.generatePresignedDownloadUrl(photo.getThumbnailS3Key(), null);
-        } else if (photo.getUploadStatus() == UploadStatus.UPLOADED) {
-            thumbUrl = s3StorageService.generatePresignedDownloadUrl(photo.getOriginalS3Key(), null);
         }
 
         String downloadUrl = null;
-        if (photo.getUploadStatus() == UploadStatus.UPLOADED) {
+        if (photo.getUploadStatus() == UploadStatus.UPLOADED && photo.getOriginalS3Key() != null) {
             downloadUrl = s3StorageService.generatePresignedDownloadUrl(photo.getOriginalS3Key(), photo.getOriginalFilename());
         }
 
@@ -244,6 +244,64 @@ public class PhotoService {
                 .downloadUrl(downloadUrl)
                 .createdAt(photo.getCreatedAt())
                 .build();
+    }
+
+    @Transactional
+    public void deletePhoto(UUID eventId, UUID photoId, User user) {
+        Event event = eventService.getEventEntityByIdAndUser(eventId, user);
+        Photo photo = photoRepository.findByIdAndEventId(photoId, eventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Photo not found in this event"));
+
+        if (photo.getOriginalS3Key() != null) {
+            s3StorageService.deleteObject(photo.getOriginalS3Key());
+        }
+        if (photo.getThumbnailS3Key() != null) {
+            s3StorageService.deleteObject(photo.getThumbnailS3Key());
+        }
+
+        rekognitionService.deleteFacesForPhotos(event.getRekognitionCollectionId(), Collections.singletonList(photoId));
+
+        event.getPhotos().remove(photo);
+        photoRepository.delete(photo);
+        photoRepository.flush();
+
+        log.info("Photo {} deleted successfully for event {}", photoId, eventId);
+    }
+
+    @Transactional
+    public int deletePhotosBulk(UUID eventId, List<UUID> photoIds, User user) {
+        if (photoIds == null || photoIds.isEmpty()) {
+            return 0;
+        }
+
+        Event event = eventService.getEventEntityByIdAndUser(eventId, user);
+        List<Photo> photos = photoRepository.findByEventIdAndIdIn(eventId, photoIds);
+
+        if (photos.isEmpty()) {
+            return 0;
+        }
+
+        List<String> s3Keys = new ArrayList<>();
+        List<UUID> foundIds = new ArrayList<>();
+        for (Photo photo : photos) {
+            foundIds.add(photo.getId());
+            if (photo.getOriginalS3Key() != null) {
+                s3Keys.add(photo.getOriginalS3Key());
+            }
+            if (photo.getThumbnailS3Key() != null) {
+                s3Keys.add(photo.getThumbnailS3Key());
+            }
+        }
+
+        s3StorageService.deleteObjects(s3Keys);
+        rekognitionService.deleteFacesForPhotos(event.getRekognitionCollectionId(), foundIds);
+
+        event.getPhotos().removeAll(photos);
+        photoRepository.deleteAll(photos);
+        photoRepository.flush();
+
+        log.info("Bulk-deleted {} photos for event {}", photos.size(), eventId);
+        return photos.size();
     }
 
     private String sanitizeFilename(String filename) {
