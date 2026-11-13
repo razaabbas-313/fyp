@@ -1,0 +1,53 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: fotofetch-backend
+  
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fotofetch}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+    
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+# FotoFetch Application Properties
+fotofetch:
+  jwt:
+    secret: ${JWT_SECRET:fotofetch-super-secret-key-that-is-at-least-256-bits-long-for-jwt-signing-2026}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+  
+  aws:
+    region: ${AWS_REGION:us-east-1}
+    access-key-id: ${AWS_ACCESS_KEY_ID:AKIAIOSFODNN7EXAMPLE}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY:wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY}
+    s3:
+      bucket-name: ${AWS_S3_BUCKET:fotofetch-photos-bucket}
+      presigned-url-expiration-minutes: 30
+    rekognition:
+      collection-prefix: fotofetch-event-
+      similarity-threshold: 80.0
+      max-faces: 50
+
+logging:
+  level:
+    com.fotofetch: INFO
+    org.springframework.security: WARN
+    org.springframework.web: INFO
