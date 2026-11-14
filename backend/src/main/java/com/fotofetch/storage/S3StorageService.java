@@ -150,4 +150,23 @@ public class S3StorageService {
             log.warn("Failed batch delete in S3: {}", ex.getMessage());
         }
     }
+
+    public boolean doesObjectExist(String key) {
+        if (key == null || key.isBlank()) {
+            return false;
+        }
+        try {
+            HeadObjectRequest headRequest = HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(key)
+                    .build();
+            s3Client.headObject(headRequest);
+            return true;
+        } catch (NoSuchKeyException ex) {
+            return false;
+        } catch (Exception ex) {
+            log.warn("Failed headObject check for key {}: {}", key, ex.getMessage());
+            return false;
+        }
+    }
 }

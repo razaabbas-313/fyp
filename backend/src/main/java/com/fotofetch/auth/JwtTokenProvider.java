@@ -22,15 +22,14 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${fotofetch.jwt.secret}") String secret,
             @Value("${fotofetch.jwt.expiration-ms:86400000}") long expirationMs) {
-        // Ensure key is long enough for HMAC-SHA256
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalArgumentException("JWT secret cannot be null or empty");
+        }
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length < 32) {
-            byte[] padded = new byte[32];
-            System.arraycopy(keyBytes, 0, padded, 0, keyBytes.length);
-            this.key = Keys.hmacShaKeyFor(padded);
-        } else {
-            this.key = Keys.hmacShaKeyFor(keyBytes);
+            throw new IllegalArgumentException("fotofetch.jwt.secret must be at least 32 bytes (256 bits) for HMAC-SHA256 signing security");
         }
+        this.key = Keys.hmacShaKeyFor(keyBytes);
         this.expirationMs = expirationMs;
     }
 

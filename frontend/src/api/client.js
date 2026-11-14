@@ -6,6 +6,11 @@ let resolvedBaseUrl = '/api';
 if (rawApiUrl && rawApiUrl.trim() !== '') {
   const trimmed = rawApiUrl.trim().replace(/\/+$/, '');
   resolvedBaseUrl = trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+} else if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+  console.warn(
+    'FotoFetch AI: VITE_API_URL is not set in Vercel environment variables. Requests will default to /api. ' +
+    'Please set VITE_API_URL=https://<your-render-backend-url> in Vercel Project Settings.'
+  );
 }
 
 const api = axios.create({

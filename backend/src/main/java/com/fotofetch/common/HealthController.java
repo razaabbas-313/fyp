@@ -30,8 +30,6 @@ public class HealthController {
         response.put("status", "UP");
         response.put("service", "FotoFetch AI Backend");
         response.put("awsConfigured", awsConfigured);
-        response.put("awsRegion", awsRegion);
-        response.put("s3Bucket", bucketName);
         response.put("timestamp", System.currentTimeMillis());
 
         return ResponseEntity.ok(response);

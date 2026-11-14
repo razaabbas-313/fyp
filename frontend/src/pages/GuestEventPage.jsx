@@ -170,13 +170,17 @@ export const GuestEventPage = () => {
   // Single download
   const handleDownloadSingle = async (photo, e) => {
     e?.stopPropagation();
+    let downloadUrl = photo.downloadUrl;
+    if (!downloadUrl) {
+      setToast({
+        message: 'Original HD downloads are protected. Please use the "Find My Photos" tab with your selfie to access and download your pictures!',
+        type: 'info',
+      });
+      return;
+    }
+
     setDownloadingPhotoId(photo.id);
     try {
-      let downloadUrl = photo.downloadUrl;
-      if (!downloadUrl) {
-        const res = await guestApi.getPhotoDownloadUrl(publicId, photo.id);
-        downloadUrl = res.data.downloadUrl;
-      }
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = photo.originalFilename || 'photo.jpg';
@@ -438,6 +442,10 @@ export const GuestEventPage = () => {
                     <p className="text-xs text-slate-400 max-w-sm mx-auto">
                       Take a clear selfie or upload one from your device. Our AI will search this event for matching photographs.
                     </p>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.04] border border-white/5 text-[11px] text-slate-400 mt-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-brand-400 shrink-0" />
+                      <span>Privacy Protected: Your selfie is processed in-memory solely for matching and is never stored.</span>
+                    </div>
                   </div>
 
                   <input

@@ -32,5 +32,5 @@ USER fotofetch
 ENV PORT=8080
 EXPOSE ${PORT}
 
-# Container-aware JVM memory settings and dynamic port
-ENTRYPOINT ["sh", "-c", "java -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Dserver.port=${PORT} -jar app.jar"]
+# Production JVM memory constraints tailored for Render 512MB container limit
+ENTRYPOINT ["sh", "-c", "java -XX:+UseContainerSupport -XX:+UseSerialGC -Xms96m -Xmx224m -XX:MaxMetaspaceSize=112m -Xss384k -XX:+ExitOnOutOfMemoryError -Dserver.port=${PORT} -jar app.jar"]

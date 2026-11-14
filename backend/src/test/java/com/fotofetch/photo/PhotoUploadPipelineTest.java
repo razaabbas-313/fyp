@@ -63,6 +63,8 @@ class PhotoUploadPipelineTest {
 
         when(s3StorageService.generatePresignedUploadUrl(anyString(), anyString()))
                 .thenReturn("https://test-bucket.s3.amazonaws.com/test-url");
+        when(s3StorageService.doesObjectExist(anyString()))
+                .thenReturn(true);
 
         testUser = userRepository.save(User.builder()
                 .name("Test Photographer")

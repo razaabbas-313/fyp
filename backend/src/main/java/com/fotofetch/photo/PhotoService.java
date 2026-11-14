@@ -97,6 +97,18 @@ public class PhotoService {
 
             Photo photo = photoOptional.get();
 
+            // Idempotency: Skip already UPLOADED photos to prevent duplicate Rekognition indexing
+            if (photo.getUploadStatus() == UploadStatus.UPLOADED) {
+                log.info("Photo {} already confirmed and UPLOADED, skipping duplicate confirm", photoId);
+                continue;
+            }
+
+            // Verify the object was actually uploaded to S3
+            if (!s3StorageService.doesObjectExist(photo.getOriginalS3Key())) {
+                log.warn("Photo {} not found in S3 at key: {}, skipping confirmation", photoId, photo.getOriginalS3Key());
+                continue;
+            }
+
             log.info("Photo found: {}. Current upload status: {}", photo.getId(), photo.getUploadStatus());
 
             photo.setUploadStatus(UploadStatus.UPLOADED);
@@ -150,7 +162,7 @@ public class PhotoService {
         return photoRepository.findByEventIdOrderByCreatedAtDesc(event.getId())
                 .stream()
                 .filter(p -> p.getUploadStatus() == UploadStatus.UPLOADED)
-                .map(this::mapToPhotoResponse)
+                .map(this::mapToPublicPhotoResponse)
                 .collect(Collectors.toList());
     }
 
@@ -163,7 +175,8 @@ public class PhotoService {
         return s3StorageService.generatePresignedDownloadUrl(photo.getOriginalS3Key(), photo.getOriginalFilename());
     }
 
-    @Transactional(readOnly = true)
+    // Rekognition search is intentionally non-transactional to avoid holding DB connections
+    // during the external AWS Rekognition network roundtrip
     public List<SearchMatchResponse> searchGuestPhotos(String publicId, byte[] selfieBytes, Float threshold) {
         Event event = eventService.getEventEntityByPublicId(publicId);
         String collectionId = event.getRekognitionCollectionId();
@@ -202,6 +215,7 @@ public class PhotoService {
             if (photo.getThumbnailS3Key() != null) {
                 thumbUrl = s3StorageService.generatePresignedDownloadUrl(photo.getThumbnailS3Key(), null);
             }
+            // Full original download URL is granted specifically to verified facial-recognition matches
             String downloadUrl = s3StorageService.generatePresignedDownloadUrl(photo.getOriginalS3Key(), photo.getOriginalFilename());
 
             responseList.add(SearchMatchResponse.builder()
@@ -218,6 +232,29 @@ public class PhotoService {
         // Sort descending by similarity
         responseList.sort((a, b) -> Float.compare(b.getSimilarity(), a.getSimilarity()));
         return responseList;
+    }
+
+    public PhotoResponse mapToPublicPhotoResponse(Photo photo) {
+        String thumbUrl = null;
+        if (photo.getThumbnailS3Key() != null) {
+            thumbUrl = s3StorageService.generatePresignedDownloadUrl(photo.getThumbnailS3Key(), null);
+        }
+
+        // Public event gallery ONLY exposes thumbnails.
+        // Full HD downloadUrl is strictly null to preserve facial-search privacy.
+        return PhotoResponse.builder()
+                .id(photo.getId())
+                .originalFilename(photo.getOriginalFilename())
+                .fileSize(photo.getFileSize())
+                .contentType(photo.getContentType())
+                .uploadStatus(photo.getUploadStatus())
+                .thumbnailStatus(photo.getThumbnailStatus())
+                .indexingStatus(photo.getIndexingStatus())
+                .facesFound(photo.getFacesFound())
+                .thumbnailUrl(thumbUrl)
+                .downloadUrl(null)
+                .createdAt(photo.getCreatedAt())
+                .build();
     }
 
     public PhotoResponse mapToPhotoResponse(Photo photo) {

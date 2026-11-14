@@ -20,4 +20,6 @@ public interface PhotoRepository extends JpaRepository<Photo, UUID> {
     
     @Query("SELECT COUNT(p) FROM Photo p WHERE p.event.user.id = :userId")
     long countTotalPhotosByUserId(@Param("userId") UUID userId);
+
+    List<Photo> findByUploadStatusAndThumbnailStatusIn(UploadStatus uploadStatus, Collection<ThumbnailStatus> thumbnailStatuses);
 }

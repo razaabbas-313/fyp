@@ -26,8 +26,15 @@ public class AwsConfig {
 
     @Bean
     public AwsCredentialsProvider awsCredentialsProvider() {
-        if (accessKeyId != null && !accessKeyId.isBlank() && !accessKeyId.contains("EXAMPLE")
-                && secretAccessKey != null && !secretAccessKey.isBlank() && !secretAccessKey.contains("EXAMPLE")) {
+        boolean validAccessKey = accessKeyId != null && !accessKeyId.isBlank()
+                && !accessKeyId.equalsIgnoreCase("your_aws_access_key_id")
+                && !accessKeyId.contains("EXAMPLE");
+
+        boolean validSecretKey = secretAccessKey != null && !secretAccessKey.isBlank()
+                && !secretAccessKey.equalsIgnoreCase("your_aws_secret_access_key")
+                && !secretAccessKey.contains("EXAMPLE");
+
+        if (validAccessKey && validSecretKey) {
             return StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKeyId, secretAccessKey));
         }
         // Fall back to AWS default credentials provider (env vars, ~/.aws/credentials, IAM role, etc.)

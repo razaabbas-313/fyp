@@ -39,9 +39,29 @@ public class PhotoProcessingService {
         try {
             photo.setThumbnailStatus(ThumbnailStatus.PROCESSING);
             photo = photoRepository.saveAndFlush(photo);
+            software.amazon.awssdk.core.ResponseInputStream<software.amazon.awssdk.services.s3.model.GetObjectResponse> s3Stream = null;
+            try {
+                s3Stream = s3StorageService.getObjectStream(photo.getOriginalS3Key());
+            } catch (Exception ignored) {
+            }
 
-            byte[] originalBytes = s3StorageService.getObjectBytes(photo.getOriginalS3Key());
-            byte[] thumbnailBytes = thumbnailService.generateThumbnail(originalBytes);
+            byte[] thumbnailBytes;
+            if (s3Stream != null) {
+                try (software.amazon.awssdk.core.ResponseInputStream<software.amazon.awssdk.services.s3.model.GetObjectResponse> stream = s3Stream) {
+                    thumbnailBytes = thumbnailService.generateThumbnail(stream);
+                } catch (Exception streamEx) {
+                    log.warn("Streaming thumbnail generation failed for {}, falling back to buffered bytes: {}", photoId, streamEx.getMessage());
+                    byte[] originalBytes = s3StorageService.getObjectBytes(photo.getOriginalS3Key());
+                    thumbnailBytes = thumbnailService.generateThumbnail(originalBytes);
+                }
+            } else {
+                byte[] originalBytes = s3StorageService.getObjectBytes(photo.getOriginalS3Key());
+                thumbnailBytes = thumbnailService.generateThumbnail(originalBytes);
+            }
+
+            if (thumbnailBytes == null) {
+                throw new IllegalStateException("Thumbnail generation produced null byte array");
+            }
 
             String thumbnailKey = String.format("events/%s/thumbnails/%s.jpg", photo.getEvent().getId(), photoId);
             s3StorageService.uploadThumbnail(thumbnailKey, thumbnailBytes);

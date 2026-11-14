@@ -1,5 +1,11 @@
 server:
   port: ${PORT:8080}
+  tomcat:
+    threads:
+      max: 20
+      min-spare: 4
+    max-connections: 100
+    accept-count: 20
 
 spring:
   application:
@@ -10,6 +16,12 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:admin}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      idle-timeout: 300000
+      max-lifetime: 900000
+      connection-timeout: 20000
     
   jpa:
     hibernate:
@@ -25,8 +37,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 100MB
+      max-file-size: 25MB
+      max-request-size: 30MB
 
 # FotoFetch Application Properties
 fotofetch:
@@ -39,7 +51,7 @@ fotofetch:
     access-key-id: ${AWS_ACCESS_KEY_ID:your_aws_access_key_id}
     secret-access-key: ${AWS_SECRET_ACCESS_KEY:your_aws_secret_access_key}
     s3:
-      bucket-name: ${AWS_S3_BUCKET:fotofetch-ai-photos-480836974477}
+      bucket-name: ${AWS_S3_BUCKET:fotofetch-ai-photos}
       presigned-url-expiration-minutes: 30
     rekognition:
       collection-prefix: fotofetch-event-

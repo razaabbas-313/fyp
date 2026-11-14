@@ -12,9 +12,11 @@ public class AsyncConfig {
     @Bean(name = "photoProcessingExecutor")
     public Executor photoProcessingExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(500);
+        // Render Free Tier has 512MB RAM limit. Keep concurrency low (1-2 workers)
+        // to prevent concurrent image decodes from exhausting container memory.
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("PhotoProcess-");
         executor.initialize();
         return executor;

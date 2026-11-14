@@ -59,6 +59,9 @@ public class GuestController {
         if (selfie == null || selfie.isEmpty()) {
             throw new BadRequestException("Selfie image file is required");
         }
+        if (selfie.getSize() > 5 * 1024 * 1024) {
+            throw new BadRequestException("Selfie image must be 5MB or smaller");
+        }
 
         try {
             byte[] selfieBytes = selfie.getBytes();

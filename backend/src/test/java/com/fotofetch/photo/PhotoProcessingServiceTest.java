@@ -57,6 +57,7 @@ class PhotoProcessingServiceTest {
 
     @BeforeEach
     void setUp() {
+        reset(s3StorageService, thumbnailService, rekognitionService);
         photoRepository.deleteAll();
         eventRepository.deleteAll();
         userRepository.deleteAll();
