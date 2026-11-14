@@ -158,12 +158,9 @@ public class PhotoService {
 
     @Transactional(readOnly = true)
     public List<PhotoResponse> getPublicPhotosForEvent(String publicId) {
-        Event event = eventService.getEventEntityByPublicId(publicId);
-        return photoRepository.findByEventIdOrderByCreatedAtDesc(event.getId())
-                .stream()
-                .filter(p -> p.getUploadStatus() == UploadStatus.UPLOADED)
-                .map(this::mapToPublicPhotoResponse)
-                .collect(Collectors.toList());
+        // Face-gated privacy: Guests do not have access to browse all event photos.
+        // Photos are only returned when their face matches via searchGuestPhotos().
+        return java.util.Collections.emptyList();
     }
 
     @Transactional(readOnly = true)

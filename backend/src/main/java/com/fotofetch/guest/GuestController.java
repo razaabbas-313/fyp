@@ -46,8 +46,8 @@ public class GuestController {
 
     @GetMapping("/{publicId}/photos")
     public ResponseEntity<ApiResponse<List<PhotoResponse>>> getPublicPhotos(@PathVariable String publicId) {
-        List<PhotoResponse> photos = photoService.getPublicPhotosForEvent(publicId);
-        return ResponseEntity.ok(ApiResponse.success(photos));
+        // Disabled to protect guest privacy: guests only access photos where their face matches via POST /{publicId}/search
+        return ResponseEntity.ok(ApiResponse.success(java.util.Collections.emptyList(), "Public browsing disabled for guest privacy. Use selfie search to find your photos."));
     }
 
     @PostMapping(value = "/{publicId}/search", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
