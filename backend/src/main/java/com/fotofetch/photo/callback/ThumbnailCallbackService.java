@@ -35,6 +35,8 @@ public class ThumbnailCallbackService {
     @Transactional
     public ThumbnailCallbackResponse handleCallback(ThumbnailCallbackRequest request) {
         if (request.getCallbackId() == null || request.getCallbackId().isBlank()) {
+            log.warn("Thumbnail callback rejected: callbackId is required in callback payload (photoId: {}, eventId: {})",
+                    request.getPhotoId(), request.getEventId());
             throw new BadRequestException("callbackId is required in callback payload");
         }
 
@@ -42,19 +44,22 @@ public class ThumbnailCallbackService {
 
         // 1. Check for duplicate/replayed callback ID
         if (processedCallbackRepository.existsById(callbackId)) {
-            log.warn("Replay rejected: callback ID {} has already been processed", callbackId);
+            log.warn("Thumbnail callback rejected: Duplicate callback ID {} has already been processed (photoId: {}, eventId: {})",
+                    callbackId, request.getPhotoId(), request.getEventId());
             throw new BadRequestException("Duplicate callback rejected: callbackId " + callbackId + " has already been processed");
         }
 
         if (request.getPhotoId() == null) {
+            log.warn("Thumbnail callback rejected: photoId is required in callback payload (callbackId: {}, eventId: {})",
+                    callbackId, request.getEventId());
             throw new BadRequestException("photoId is required in callback payload");
         }
 
         Optional<Photo> photoOpt = photoRepository.findById(request.getPhotoId());
         if (photoOpt.isEmpty()) {
             // Deleted photo acknowledged safely without recreating its database record
-            log.warn("Thumbnail callback received for deleted or non-existent photo: {}. Acknowledging without recreating record.",
-                    request.getPhotoId());
+            log.warn("Thumbnail callback received for deleted or non-existent photo: {} (callbackId: {}, eventId: {}). Acknowledging without recreating record.",
+                    request.getPhotoId(), callbackId, request.getEventId());
             return ThumbnailCallbackResponse.builder()
                     .photoId(request.getPhotoId())
                     .status("NOT_FOUND_ACKNOWLEDGED")
@@ -67,22 +72,28 @@ public class ThumbnailCallbackService {
 
         // 2. Validate Event ID matches
         if (request.getEventId() == null || !request.getEventId().equals(photo.getEvent().getId())) {
-            throw new BadRequestException(String.format(
+            String errorMsg = String.format(
                     "Event ID mismatch: photo belongs to event %s, but callback reported %s",
-                    photo.getEvent().getId(), request.getEventId()));
+                    photo.getEvent().getId(), request.getEventId());
+            log.warn("Thumbnail callback rejected: {} (callbackId: {}, photoId: {})", errorMsg, callbackId, photo.getId());
+            throw new BadRequestException(errorMsg);
         }
 
         // 3. Validate Original S3 Key matches database
         if (request.getOriginalS3Key() == null || !request.getOriginalS3Key().equals(photo.getOriginalS3Key())) {
-            throw new BadRequestException(String.format(
+            String errorMsg = String.format(
                     "Original S3 key mismatch: expected %s, but callback reported %s",
-                    photo.getOriginalS3Key(), request.getOriginalS3Key()));
+                    photo.getOriginalS3Key(), request.getOriginalS3Key());
+            log.warn("Thumbnail callback rejected: {} (callbackId: {}, photoId: {})", errorMsg, callbackId, photo.getId());
+            throw new BadRequestException(errorMsg);
         }
 
         // 4. Validate callback status is valid
         String statusStr = request.getStatus() != null ? request.getStatus().trim().toUpperCase() : "";
         if (!statusStr.equals("COMPLETED") && !statusStr.equals("FAILED")) {
-            throw new BadRequestException("Invalid callback status: " + request.getStatus() + ". Allowed: COMPLETED, FAILED");
+            String errorMsg = "Invalid callback status: " + request.getStatus() + ". Allowed: COMPLETED, FAILED";
+            log.warn("Thumbnail callback rejected: {} (callbackId: {}, photoId: {})", errorMsg, callbackId, photo.getId());
+            throw new BadRequestException(errorMsg);
         }
 
         // 5. If COMPLETED, validate thumbnail S3 key format
@@ -90,9 +101,11 @@ public class ThumbnailCallbackService {
         if (statusStr.equals("COMPLETED")) {
             expectedThumbnailKey = String.format("events/%s/thumbnails/%s.jpg", photo.getEvent().getId(), photo.getId());
             if (request.getThumbnailS3Key() == null || !expectedThumbnailKey.equals(request.getThumbnailS3Key().trim())) {
-                throw new BadRequestException(String.format(
+                String errorMsg = String.format(
                         "Invalid thumbnail S3 key. Expected: %s, but callback reported: %s",
-                        expectedThumbnailKey, request.getThumbnailS3Key()));
+                        expectedThumbnailKey, request.getThumbnailS3Key());
+                log.warn("Thumbnail callback rejected: {} (callbackId: {}, photoId: {})", errorMsg, callbackId, photo.getId());
+                throw new BadRequestException(errorMsg);
             }
         }
 
@@ -106,7 +119,7 @@ public class ThumbnailCallbackService {
         try {
             processedCallbackRepository.saveAndFlush(processedCallback);
         } catch (org.springframework.dao.DataIntegrityViolationException ex) {
-            log.warn("Concurrent duplicate callback rejected by DB constraint for callbackId: {}", callbackId);
+            log.warn("Concurrent duplicate callback rejected by DB constraint for callbackId: {} (photoId: {})", callbackId, photo.getId());
             throw new BadRequestException("Duplicate callback rejected: callbackId " + callbackId + " has already been processed");
         }
 

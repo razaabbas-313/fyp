@@ -721,4 +721,34 @@ class ThumbnailCallbackIntegrationTest {
         assertTrue(processedCallbackRepository.existsById(failCallbackId));
         assertTrue(processedCallbackRepository.existsById(successCallbackId));
     }
+
+    @Test
+    @DisplayName("19. Diagnostic logging: Validation failure produces HTTP 400 with exact error details and preserves security")
+    void testValidationFailureDiagnosticLogging() throws Exception {
+        Photo photo = createTestPhoto(UploadStatus.UPLOADED, ThumbnailStatus.PENDING, IndexingStatus.PENDING);
+
+        ThumbnailCallbackRequest request = createCallbackBuilder(photo)
+                .callbackId("diagnostic-test-cid")
+                .originalS3Key("events/" + testEvent.getId() + "/originals/mismatched-key.jpg")
+                .build();
+
+        byte[] rawBody = objectMapper.writeValueAsBytes(request);
+        long timestamp = System.currentTimeMillis();
+        String signature = HmacSignatureValidator.calculateSignatureHex(timestamp, rawBody, callbackSecret);
+
+        mockMvc.perform(post("/api/internal/photos/thumbnail-callback")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-FotoFetch-Signature", signature)
+                        .header("X-FotoFetch-Timestamp", timestamp)
+                        .content(rawBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Original S3 key mismatch")));
+
+        // Verify photo status was not modified
+        Photo unchanged = photoRepository.findById(photo.getId()).orElseThrow();
+        assertEquals(ThumbnailStatus.PENDING, unchanged.getThumbnailStatus());
+        assertNull(unchanged.getThumbnailS3Key());
+        assertFalse(processedCallbackRepository.existsById("diagnostic-test-cid"));
+    }
 }

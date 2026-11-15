@@ -108,6 +108,12 @@ public class BackendCallbackClient {
                     return; // Success!
                 }
 
+                // Capture, sanitize, and log response body for diagnostic visibility
+                String rawBody = response.body();
+                String sanitizedBody = sanitizeResponseBody(rawBody);
+                System.err.printf("Backend callback returned HTTP %d on attempt %d/%d: %s%n",
+                        status, attempt, maxAttempts, sanitizedBody);
+
                 if (status == 401 || status == 403 || status == 429) {
                     // Transient authentication, authorization, or rate-limiting issues (e.g. clock drift, key sync delay, throttling)
                     // Allows SQS retries and eventual Dead Letter Queue routing for operational review
@@ -171,5 +177,29 @@ public class BackendCallbackClient {
         } catch (Exception ex) {
             throw new RuntimeException("Failed to compute HMAC-SHA256 signature", ex);
         }
+    }
+
+    /**
+     * Sanitizes and truncates a backend response body for safe diagnostic logging.
+     * Strips control characters, normalizes whitespace, masks potential sensitive patterns,
+     * and bounds length to a maximum of 250 characters.
+     */
+    public static String sanitizeResponseBody(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            return "<empty>";
+        }
+        // Normalize newlines, carriage returns, tabs to spaces and strip non-ASCII / unprintable characters
+        String sanitized = rawBody.replaceAll("[\\r\\n\\t]+", " ")
+                .replaceAll("[^\\x20-\\x7E]", "")
+                .trim();
+        if (sanitized.isEmpty()) {
+            return "<empty>";
+        }
+        // Mask any potential sensitive key-value pairs (e.g. token, secret, password, signature, authorization)
+        sanitized = sanitized.replaceAll("(?i)(\"(?:token|secret|password|signature|authorization|key)\"\\s*:\\s*\")[^\"]+(\")", "$1***REDACTED***$2");
+        if (sanitized.length() > 250) {
+            return sanitized.substring(0, 250);
+        }
+        return sanitized;
     }
 }

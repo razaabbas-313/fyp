@@ -230,4 +230,43 @@ class BackendCallbackClientTest {
         assertFalse(failurePayload.getCallbackId().isBlank());
         assertNotEquals(successPayload.getCallbackId(), failurePayload.getCallbackId());
     }
+
+    @Test
+    @DisplayName("sanitizeResponseBody handles null, empty, and whitespace strings safely")
+    void testSanitizeResponseBodyNullAndBlank() {
+        assertEquals("<empty>", BackendCallbackClient.sanitizeResponseBody(null));
+        assertEquals("<empty>", BackendCallbackClient.sanitizeResponseBody(""));
+        assertEquals("<empty>", BackendCallbackClient.sanitizeResponseBody("   \t\r\n  "));
+    }
+
+    @Test
+    @DisplayName("sanitizeResponseBody strips newlines, tabs, and unprintable characters")
+    void testSanitizeResponseBodyStripsControlCharacters() {
+        String input = "Line1\r\nLine2\tLine3\u0000\u0007End";
+        String sanitized = BackendCallbackClient.sanitizeResponseBody(input);
+        assertEquals("Line1 Line2 Line3End", sanitized);
+        assertFalse(sanitized.contains("\n"));
+        assertFalse(sanitized.contains("\r"));
+    }
+
+    @Test
+    @DisplayName("sanitizeResponseBody truncates strings to a maximum of 250 characters")
+    void testSanitizeResponseBodyTruncation() {
+        String longInput = "A".repeat(400);
+        String sanitized = BackendCallbackClient.sanitizeResponseBody(longInput);
+        assertEquals(250, sanitized.length());
+        assertEquals("A".repeat(250), sanitized);
+    }
+
+    @Test
+    @DisplayName("sanitizeResponseBody masks sensitive keys (token, secret, password, etc.)")
+    void testSanitizeResponseBodyRedactsSensitiveKeys() {
+        String input = "{\"token\":\"super_secret_jwt\",\"secret\":\"api_key_123\",\"message\":\"normal text\"}";
+        String sanitized = BackendCallbackClient.sanitizeResponseBody(input);
+        assertTrue(sanitized.contains("\"token\":\"***REDACTED***\""));
+        assertTrue(sanitized.contains("\"secret\":\"***REDACTED***\""));
+        assertTrue(sanitized.contains("\"message\":\"normal text\""));
+        assertFalse(sanitized.contains("super_secret_jwt"));
+        assertFalse(sanitized.contains("api_key_123"));
+    }
 }
