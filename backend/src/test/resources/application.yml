@@ -16,6 +16,10 @@ fotofetch:
   jwt:
     secret: test-secret-key-at-least-256-bits-long-for-jwt-signing-2026
     expiration-ms: 3600000
+  lambda:
+    callback-secret: test-lambda-callback-secret-for-unit-tests-2026
+  thumbnail:
+    lambda-enabled: true
   aws:
     region: us-east-1
     access-key-id: test-key

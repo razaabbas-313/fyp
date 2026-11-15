@@ -1,0 +1,20 @@
+package com.fotofetch.photo.callback;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.UUID;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ThumbnailCallbackResponse {
+
+    private UUID photoId;
+    private String status;
+    private String message;
+    private boolean indexingScheduled;
+}

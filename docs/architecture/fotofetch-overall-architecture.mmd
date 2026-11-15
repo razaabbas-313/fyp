@@ -1,0 +1,228 @@
+%% ============================================================================
+%% FotoFetch AI — Complete Overall System Architecture Diagram
+%% Source: FYP Proposal (Primary Specification) & Codebase Implementation Audit
+%% Institution: Mehran University of Engineering, Science & Technology (MUET)
+%% Department: Software Engineering (Batch: 23SW)
+%% ============================================================================
+
+flowchart TB
+
+    %% ------------------------------------------------------------------------
+    %% STYLING CLASSES (Implementation Status & Layer Distinctions)
+    %% ------------------------------------------------------------------------
+    classDef implemented fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#1B5E20;
+    classDef partial fill:#FFF8E1,stroke:#F57F17,stroke-width:2px,stroke-dasharray: 4 4,color:#E65100;
+    classDef proposed fill:#EDE7F6,stroke:#7E57C2,stroke-width:2px,stroke-dasharray: 6 3,color:#4A148C;
+    classDef boundary fill:#FAFAFA,stroke:#90A4AE,stroke-width:2px,color:#263238;
+    classDef datastore fill:#E3F2FD,stroke:#1565C0,stroke-width:2px,color:#0D47A1;
+    classDef pipeline fill:#FFF3E0,stroke:#E65100,stroke-width:2px,color:#BF360C;
+
+    %% ========================================================================
+    %% LAYER 1: USER & ACCESS LAYER
+    %% ========================================================================
+    subgraph L1 ["LAYER 1: USER & ACCESS LAYER"]
+        direction LR
+        subgraph L1_Auth ["Authenticated Studio Actors"]
+            U_SuperAdmin["Super Admin<br/><i>(Platform Oversight & Studio Admin)</i>"]:::proposed
+            U_StudioAdmin["Studio Admin<br/><i>(Studio Mgmt, Team & Wallet)</i>"]:::proposed
+            U_Photographer["Photographer<br/><i>(Event Creation & Direct S3 Upload)</i>"]:::implemented
+            U_Organizer["Event Organizer<br/><i>(Event-Scoped Gallery View)</i>"]:::proposed
+        end
+        subgraph L1_Public ["Account-Free Public Actors"]
+            U_Guest["Guest / Event Attendee<br/><i>(QR / Link Access, Selfie Search, Name Retrieval, HD Downloads)</i>"]:::implemented
+        end
+    end
+
+    %% ========================================================================
+    %% LAYER 2: FRONTEND / PRESENTATION LAYER (React.js SPA)
+    %% ========================================================================
+    subgraph L2 ["LAYER 2: FRONTEND / PRESENTATION LAYER (React.js SPA)"]
+        subgraph L2_Auth_UI ["Role-Aware Authenticated Dashboards"]
+            UI_SuperAdmin["Super Admin Console<br/><i>Tenant & System Metrics</i>"]:::proposed
+            UI_StudioAdmin["Studio Admin Dashboard<br/><i>Photographers, Events & Wallet</i>"]:::proposed
+            UI_Photographer["Photographer Dashboard<br/><i>Event Management & Gallery Grid</i>"]:::implemented
+            UI_Organizer["Organizer Dashboard<br/><i>Event-Scoped Progress & Gallery</i>"]:::proposed
+            UI_DirectUpload["Direct S3 Upload Component<br/><i>Presigned PUT, XHR Progress Tracking</i>"]:::implemented
+            UI_Worker["Client-Side Web Workers<br/><i>Client Image Pre-processing</i>"]:::proposed
+        end
+
+        subgraph L2_Public_UI ["Guest Public Interface (Account-Free)"]
+            UI_Landing["Public Event Landing<br/><i>QR Access & Event Info</i>"]:::implemented
+            UI_SelfieSearch["Selfie Search & Camera Modal<br/><i>Webcam Capture & Upload</i>"]:::implemented
+            UI_NameSearch["Returning Guest Search<br/><i>Instant Text/Username Lookup</i>"]:::implemented
+            UI_GuestResults["Guest Results Gallery<br/><i>Lightbox Viewer & Name Tagging</i>"]:::implemented
+            UI_GuestDownload["Download Controls<br/><i>Single HD / Batch ZIP Options</i>"]:::implemented
+        end
+    end
+
+    %% ========================================================================
+    %% LAYER 3: BACKEND APPLICATION LAYER (Spring Boot 3 / Java 17/21)
+    %% ========================================================================
+    subgraph L3 ["LAYER 3: BACKEND APPLICATION LAYER (Spring Boot / Java 17/21)"]
+
+        subgraph M_Auth ["A. Authentication, Authorization & Security"]
+            BE_SecFilter["Spring Security Filter Chain<br/><i>Stateless Session Policy, CORS</i>"]:::implemented
+            BE_JWT["JWT Token Provider & Filter<br/><i>Bearer Token Validation</i>"]:::implemented
+            BE_RBAC["5-Role RBAC & Tenant Guard<br/><i>Role-Based Access Control</i>"]:::partial
+            BE_GuestSession["Guest Session Guard<br/><i>SHA-256 Token Hash & Download Authorizer</i>"]:::implemented
+        end
+
+        subgraph M_Tenant ["B. Studio & Tenant Management"]
+            BE_TenantScoping["Tenant Scoping & Isolation<br/><i>Current: User-scoped Event Ownership</i>"]:::partial
+            BE_StudioMgmt["Studio Entity & Multi-Tenant Isolation<br/><i>Studio Data Boundaries</i>"]:::proposed
+            BE_WalletMgmt["Studio Billing & Prepaid Wallet<br/><i>Credit Balance & Usage Metering</i>"]:::proposed
+        end
+
+        subgraph M_Event ["C. Event Management"]
+            BE_EventSvc["Event Service & Controller<br/><i>Event Lifecycle & Public UUIDs</i>"]:::implemented
+            BE_QRGen["QR Code Generator<br/><i>Public Access URL Encoding</i>"]:::implemented
+            BE_EventOrg["Organizer Event Assignment<br/><i>Scoped Access Delegation</i>"]:::proposed
+        end
+
+        subgraph M_Upload ["D. Photo Ingestion & Storage Controller"]
+            BE_Presign["Presigned URL Generator<br/><i>Secure Time-Limited S3 PUT URLs</i>"]:::implemented
+            BE_Confirm["Upload Confirmation & HeadObject<br/><i>S3 Metadata & Size Validation (&le;25MB)</i>"]:::implemented
+            BE_PhotoMeta["Photo Metadata Service<br/><i>Keys, Dimensions, Status Management</i>"]:::implemented
+        end
+
+        subgraph M_Async ["E. Asynchronous Processing & Reliability"]
+            BE_TaskExec["Spring Async TaskExecutor<br/><i>ThreadPoolTaskExecutor Worker Pool</i>"]:::implemented
+            BE_AtomicClaim["Atomic Job Claimer<br/><i>Prevents Concurrent Processing Races</i>"]:::implemented
+            BE_Scheduler["PhotoRecoveryScheduler<br/><i>Self-Healing Retry-with-Backoff</i>"]:::implemented
+        end
+
+        subgraph M_AI ["F. Face Recognition & Identity Management"]
+            BE_AISvc["Rekognition / AI Service Facade<br/><i>Face Indexing & Match Orchestration</i>"]:::implemented
+            BE_GuestIdentity["Guest Identity Service<br/><i>Persistent Face-to-Name & Username Tagging</i>"]:::implemented
+            BE_NameRetrieval["Name-Based Retrieval Engine<br/><i>Exact/Partial Name & Username Lookup</i>"]:::implemented
+        end
+
+        subgraph M_Download ["G. Download Management"]
+            BE_DownloadAuth["Download Access Gatekeeper<br/><i>Validates Photo IDs against Session Match Set</i>"]:::implemented
+            BE_SingleDL["Single HD Download Signer<br/><i>Generates Presigned GET for HD Original</i>"]:::implemented
+            BE_ZipService["Streaming ZipService<br/><i>Streams HD Originals from S3 to Client Output</i>"]:::implemented
+        end
+    end
+
+    %% ========================================================================
+    %% LAYER 4: AI & FACE RECOGNITION LAYER (Strategy Pattern)
+    %% ========================================================================
+    subgraph L4 ["LAYER 4: AI & FACE RECOGNITION LAYER (Strategy Pattern)"]
+        direction TB
+        AI_Strategy["&laquo;interface&raquo;<br/><b>FaceRecognitionProvider</b><br/><i>Strategy Interface: createCollection, indexPhotoFaces, searchFacesBySelfie, deleteFaces</i>"]:::implemented
+
+        subgraph AI_Cloud ["Implementation 1: Cloud AI Provider (Active)"]
+            AI_Rekognition["<b>AwsRekognitionProvider</b><br/><i>AWS Rekognition Service Integration<br/>Event-Specific Face Collections<br/>Cloud-Managed Vector Embeddings</i>"]:::implemented
+        end
+
+        subgraph AI_SelfHosted ["Implementation 2: Self-Hosted Provider (Proposed)"]
+            AI_LocalEngine["<b>SelfHostedFaceRecognitionProvider</b><br/><i>InsightFace / FaceNet Engine<br/>Local Vector Similarity Search (pgvector)</i>"]:::proposed
+        end
+
+        AI_Strategy -.->|implemented by| AI_Rekognition
+        AI_Strategy -.->|pluggable alternative| AI_LocalEngine
+    end
+
+    %% ========================================================================
+    %% LAYER 5: DUAL-STREAM PHOTO PROCESSING PIPELINE
+    %% ========================================================================
+    subgraph L5 ["LAYER 5: DUAL-STREAM PHOTO PROCESSING PIPELINE"]
+        direction TB
+        PIPE_Trigger["Upload Confirmed (Transaction Committed)"]:::pipeline
+
+        subgraph StreamA ["Stream A: Fast Thumbnail Indexing (Prioritized for Fast Search)"]
+            A1["1. Stream Original from S3"]:::implemented
+            A2["2. ThumbnailService: Resize to 1080px (JPEG 82%)"]:::implemented
+            A3["3. S3StorageService: Upload Thumbnail to S3"]:::implemented
+            A4["4. FaceRecognitionProvider: Index Faces on Thumbnail"]:::implemented
+            A5["5. Set IndexingStatus = COMPLETED / NO_FACES"]:::implemented
+            A1 --> A2 --> A3 --> A4 --> A5
+        end
+
+        subgraph StreamB ["Stream B: Background HD Archival & Self-Healing Reliability"]
+            B1["1. Original HD Preserved in S3 /originals/"]:::implemented
+            B2["2. PhotoRecoveryScheduler: Polls Stuck & Failed Photos"]:::implemented
+            B3["3. Exponential Backoff Retry (1x, 2x, 4x up to Max Retries)"]:::implemented
+            B4["4. HD Original Ready for Authenticated Downloads"]:::implemented
+            B1 -.-> B2 --> B3 --> B4
+        end
+
+        PIPE_Trigger ==>|Stream A: Fast Path| A1
+        PIPE_Trigger ==>|Stream B: Reliable Archival| B1
+    end
+
+    %% ========================================================================
+    %% LAYER 6: CLOUD INFRASTRUCTURE & STORAGE
+    %% ========================================================================
+    subgraph L6 ["LAYER 6: CLOUD INFRASTRUCTURE & STORAGE"]
+        direction LR
+        subgraph S3_Store ["Cloud Object Storage (AWS S3 Private Bucket)"]
+            S3_Originals[("<b>events/{id}/originals/</b><br/>Full-Resolution HD Images<br/><i>(Direct Presigned PUT / Auth GET)</i>")]:::datastore
+            S3_Thumbnails[("<b>events/{id}/thumbnails/</b><br/>1080px Compressed Web Images<br/><i>(Gallery Feeds & Face Indexing)</i>")]:::datastore
+        end
+
+        subgraph PG_Store ["Relational Database (PostgreSQL)"]
+            DB_Users[("<b>users</b><br/>id, email, password, role")]:::implemented
+            DB_Events[("<b>events</b><br/>id, public_id, user_id, collection_id")]:::implemented
+            DB_Photos[("<b>photos</b><br/>id, original_key, thumb_key, statuses, retry_fields")]:::implemented
+            DB_Sessions[("<b>guest_sessions & photos</b><br/>session_token_hash, expires_at, matched_ids")]:::implemented
+            DB_Identities[("<b>guest_identities & photos</b><br/>event_id, name, username, matched_ids")]:::implemented
+            DB_Studios[("<b>studios & wallets</b><br/><i>(Proposed Multi-Tenant Schema)</i>")]:::proposed
+        end
+
+        subgraph AI_Infra ["Managed AI Services"]
+            AWS_Rekognition_Colls["<b>AWS Rekognition Service</b><br/>Event Collections: <i>fotofetch_event_{publicId}</i><br/>Cloud-Managed Facial Feature Vectors"]:::implemented
+            SelfHosted_Vectors["<b>pgvector / Milvus Vector Store</b><br/><i>(Proposed Self-Hosted Vector Store)</i>"]:::proposed
+        end
+    end
+
+    %% ========================================================================
+    %% CROSS-LAYER WORKFLOW INTERACTIONS
+    %% ========================================================================
+
+    %% Workflow A: Photographer Upload Flow
+    U_Photographer -->|1. Authenticates JWT| UI_Photographer
+    UI_Photographer -->|2. Selects Photos| UI_DirectUpload
+    UI_DirectUpload -->|3. POST /api/events/{id}/photos/presign| BE_Presign
+    BE_Presign -->|4. Generates Presigned PUT| UI_DirectUpload
+    UI_DirectUpload ==>|5. Direct S3 Upload (Original HD)| S3_Originals
+    UI_DirectUpload -->|6. POST /confirm| BE_Confirm
+    BE_Confirm -->|7. HeadObject Check| S3_Originals
+    BE_Confirm -->|8. Save Photo Record| DB_Photos
+    BE_Confirm -->|9. Trigger Pipeline (afterCommit)| BE_TaskExec
+    BE_TaskExec --> PIPE_Trigger
+    A4 -->|IndexFacesRequest| AI_Strategy
+    AI_Rekognition -->|Indexes in Collection| AWS_Rekognition_Colls
+
+    %% Workflow B: First-Time Guest Search & Name Tagging Flow
+    U_Guest -->|1. Scans Event QR Code| UI_Landing
+    UI_Landing -->|2. GET /api/public/events/{publicId}| BE_EventSvc
+    BE_EventSvc -->|Read Event| DB_Events
+    UI_Landing -->|3. Captures Selfie| UI_SelfieSearch
+    UI_SelfieSearch -->|4. POST /{publicId}/search (Selfie + Threshold)| BE_AISvc
+    BE_AISvc -->|5. SearchFacesByImage| AI_Strategy
+    AI_Strategy -->|SearchFaces| AWS_Rekognition_Colls
+    BE_AISvc -->|6. Create GuestSession| BE_GuestSession
+    BE_GuestSession -->|Store Session & Token Hash| DB_Sessions
+    BE_AISvc -->|7. Return Match Thumbnails + Session Token| UI_GuestResults
+    UI_GuestResults -->|8. POST /{publicId}/tag-name (Name + Token)| BE_GuestIdentity
+    BE_GuestIdentity -->|9. Persistent Tagging (event, name, username, photo_ids)| DB_Identities
+
+    %% Workflow C: Returning Guest Search Flow
+    U_Guest -.->|1. Re-visits Event & Enters Name/Username| UI_NameSearch
+    UI_NameSearch -.->|2. GET /{publicId}/search-by-name?query=...| BE_NameRetrieval
+    BE_NameRetrieval -.->|3. Query Identity by Username/Name| DB_Identities
+    BE_NameRetrieval -.->|4. Create New Authorized GuestSession| BE_GuestSession
+    BE_GuestSession -.->|Save Session Token| DB_Sessions
+    BE_NameRetrieval -.->|5. Return Matches & Token (No Selfie Needed)| UI_GuestResults
+
+    %% Workflow D: HD Photo & ZIP Download Flow
+    UI_GuestResults -->|1. Selects Photo(s) to Download| UI_GuestDownload
+    UI_GuestDownload -->|2. GET Single Photo Download (Token + PhotoID)| BE_SingleDL
+    BE_SingleDL -->|3. Validate Session & Photo Match| BE_DownloadAuth
+    BE_SingleDL -->|4. Return Presigned GET URL| UI_GuestDownload
+    UI_GuestDownload ==>|5. Fetch HD Original Directly| S3_Originals
+    UI_GuestDownload -->|6. POST /{publicId}/photos/zip (Token + IDs)| BE_ZipService
+    BE_ZipService -->|7. Validate Session & Batch IDs| BE_DownloadAuth
+    BE_ZipService ==>|8. Stream HD Objects from S3| S3_Originals
+    BE_ZipService ==>|9. Stream ZIP Archive (attachment)| UI_GuestDownload

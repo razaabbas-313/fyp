@@ -53,6 +53,10 @@ fotofetch:
     expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:https://fotofetch.vercel.app,http://localhost:5173}
+  lambda:
+    callback-secret: ${FOTOFETCH_LAMBDA_CALLBACK_SECRET:}
+  thumbnail:
+    lambda-enabled: ${FOTOFETCH_LAMBDA_THUMBNAIL_ENABLED:true}
   
   aws:
     region: ${AWS_REGION:ap-south-1}

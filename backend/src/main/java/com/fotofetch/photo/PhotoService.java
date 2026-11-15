@@ -30,6 +30,16 @@ public class PhotoService {
     private final PhotoProcessingService photoProcessingService;
     private final com.fotofetch.guest.session.GuestSessionService guestSessionService;
 
+    @org.springframework.beans.factory.annotation.Value("${fotofetch.thumbnail.lambda-enabled:true}")
+    private boolean lambdaThumbnailEnabled = true;
+
+    public void setLambdaThumbnailEnabled(boolean lambdaThumbnailEnabled) {
+        this.lambdaThumbnailEnabled = lambdaThumbnailEnabled;
+    }
+    public boolean isLambdaThumbnailEnabled() {
+        return lambdaThumbnailEnabled;
+    }
+
     @Transactional
     public PresignResponse createPresignedUploads(UUID eventId, PresignRequest request, User user) {
         Event event = eventService.getEventEntityByIdAndUser(eventId, user);
@@ -152,20 +162,38 @@ public class PhotoService {
                 updatedCount
         );
 
+        List<UUID> photosToProcessNow = new ArrayList<>();
+        if (!lambdaThumbnailEnabled) {
+            // When Lambda is disabled, Render handles both thumbnail generation and indexing locally
+            photosToProcessNow.addAll(confirmedPhotoIds);
+        } else {
+            // When Lambda is enabled, Render skips immediate thumbnail generation.
+            // Only schedule if the thumbnail callback already completed prior to confirm (callback-before-confirm race)
+            for (UUID confirmedId : confirmedPhotoIds) {
+                Photo p = photoRepository.findById(confirmedId).orElse(null);
+                if (p != null && p.getThumbnailStatus() == ThumbnailStatus.COMPLETED && p.getIndexingStatus() == IndexingStatus.PENDING) {
+                    photosToProcessNow.add(confirmedId);
+                    log.info("Photo {} thumbnail already completed by Lambda. Scheduling Rekognition indexing.", confirmedId);
+                } else {
+                    log.info("Photo {} confirmed (UPLOADED). Awaiting Lambda thumbnail callback before Rekognition indexing.", confirmedId);
+                }
+            }
+        }
+
         // Ensure asynchronous processing starts strictly AFTER the database transaction commits
-        if (!confirmedPhotoIds.isEmpty()) {
+        if (!photosToProcessNow.isEmpty()) {
             if (TransactionSynchronizationManager.isActualTransactionActive()) {
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        for (UUID confirmedId : confirmedPhotoIds) {
-                            photoProcessingService.processPhotoAsync(confirmedId, collectionId);
+                        for (UUID photoIdToProcess : photosToProcessNow) {
+                            photoProcessingService.processPhotoAsync(photoIdToProcess, collectionId);
                         }
                     }
                 });
             } else {
-                for (UUID confirmedId : confirmedPhotoIds) {
-                    photoProcessingService.processPhotoAsync(confirmedId, collectionId);
+                for (UUID photoIdToProcess : photosToProcessNow) {
+                    photoProcessingService.processPhotoAsync(photoIdToProcess, collectionId);
                 }
             }
         }
