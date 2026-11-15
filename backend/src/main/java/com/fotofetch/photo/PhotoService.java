@@ -289,6 +289,31 @@ public class PhotoService {
         return responseList;
     }
 
+    public List<SearchMatchResponse> mapPhotosToMatchResponses(List<Photo> photos) {
+        if (photos == null || photos.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<SearchMatchResponse> responseList = new ArrayList<>();
+        for (Photo photo : photos) {
+            String thumbUrl = null;
+            if (photo.getThumbnailS3Key() != null) {
+                thumbUrl = s3StorageService.generatePresignedDownloadUrl(photo.getThumbnailS3Key(), null);
+            }
+            String downloadUrl = s3StorageService.generatePresignedDownloadUrl(photo.getOriginalS3Key(), photo.getOriginalFilename());
+
+            responseList.add(SearchMatchResponse.builder()
+                    .photoId(photo.getId())
+                    .similarity(100.0f) // Verified tagged identity match
+                    .originalFilename(photo.getOriginalFilename())
+                    .fileSize(photo.getFileSize())
+                    .facesFound(photo.getFacesFound())
+                    .thumbnailUrl(thumbUrl)
+                    .downloadUrl(downloadUrl)
+                    .build());
+        }
+        return responseList;
+    }
+
     @Transactional
     public void retryPhotoProcessing(UUID photoId, User user) {
         Photo photo = photoRepository.findById(photoId)

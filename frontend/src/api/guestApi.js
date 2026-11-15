@@ -43,4 +43,27 @@ export const guestApi = {
       { responseType: 'blob', headers }
     );
   },
+
+  registerGuestTag: (publicId, name, sessionToken) => {
+    const headers = {};
+    if (sessionToken) {
+      headers['X-Guest-Session'] = sessionToken;
+      headers['Authorization'] = `Bearer ${sessionToken}`;
+    }
+    return api.post(
+      `/public/events/${publicId}/tag-name`,
+      { name, sessionToken },
+      { headers }
+    );
+  },
+
+  searchByName: (publicId, query) => {
+    return api.get(`/public/events/${publicId}/search-by-name`, {
+      params: { query },
+    });
+  },
+
+  listIdentities: (publicId) => {
+    return api.get(`/public/events/${publicId}/identities`);
+  },
 };

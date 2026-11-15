@@ -38,6 +38,7 @@ public class GuestController {
     private final PhotoRepository photoRepository;
     private final ZipService zipService;
     private final com.fotofetch.guest.session.GuestSessionService guestSessionService;
+    private final com.fotofetch.guest.identity.GuestIdentityService guestIdentityService;
 
     @GetMapping("/{publicId}")
     public ResponseEntity<ApiResponse<PublicEventResponse>> getPublicEvent(@PathVariable String publicId) {
@@ -121,6 +122,52 @@ public class GuestController {
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipFilename + "\"");
 
         zipService.streamPhotosZip(photos, response.getOutputStream());
+    }
+
+    @PostMapping("/{publicId}/tag-name")
+    public ResponseEntity<ApiResponse<com.fotofetch.guest.identity.dto.GuestIdentityResponse>> registerGuestTag(
+            @PathVariable String publicId,
+            @Valid @RequestBody com.fotofetch.guest.identity.dto.RegisterGuestIdentityRequest request,
+            @RequestHeader(value = "X-Guest-Session", required = false) String guestSessionHeader,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader) {
+
+        String token = request.getSessionToken();
+        if (token == null || token.isBlank()) {
+            token = guestSessionHeader != null && !guestSessionHeader.isBlank() ? guestSessionHeader : authHeader;
+        }
+
+        if (token == null || token.isBlank()) {
+            throw new com.fotofetch.common.BadRequestException("Valid guest session token is required to tag your face");
+        }
+
+        com.fotofetch.guest.identity.dto.GuestIdentityResponse response =
+                guestIdentityService.registerGuestIdentity(publicId, request.getName(), token);
+
+        return ResponseEntity.ok(ApiResponse.success(response, response.getMessage()));
+    }
+
+    @GetMapping("/{publicId}/search-by-name")
+    public ResponseEntity<ApiResponse<com.fotofetch.photo.dto.GuestSearchResponse>> searchByNameOrUsername(
+            @PathVariable String publicId,
+            @RequestParam("query") String query) {
+
+        com.fotofetch.photo.dto.GuestSearchResponse response =
+                guestIdentityService.searchByNameOrUsername(publicId, query);
+
+        String msg = "Found " + (response.getMatches() != null ? response.getMatches().size() : 0) +
+                " matching photo(s) for @" + response.getTaggedUsername();
+
+        return ResponseEntity.ok(ApiResponse.success(response, msg));
+    }
+
+    @GetMapping("/{publicId}/identities")
+    public ResponseEntity<ApiResponse<List<com.fotofetch.guest.identity.dto.GuestIdentityResponse>>> listEventIdentities(
+            @PathVariable String publicId) {
+
+        List<com.fotofetch.guest.identity.dto.GuestIdentityResponse> identities =
+                guestIdentityService.listEventIdentities(publicId);
+
+        return ResponseEntity.ok(ApiResponse.success(identities));
     }
 
     private String resolveGuestToken(String guestSessionHeader, String authHeader, String tokenParam) {

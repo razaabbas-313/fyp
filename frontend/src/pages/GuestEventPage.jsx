@@ -10,7 +10,10 @@ import {
   Lock,
   ArrowRight,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  User,
+  Search,
+  Tag
 } from 'lucide-react';
 import { guestApi } from '../api/guestApi';
 import { CameraCapture } from '../components/CameraCapture';
@@ -31,6 +34,11 @@ export const GuestEventPage = () => {
   const [searching, setSearching] = useState(false);
   const [consentGiven, setConsentGiven] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'info' });
+
+  // Persistent name-based search state (Objective 4)
+  const [searchTab, setSearchTab] = useState('selfie'); // 'selfie' | 'name'
+  const [nameQuery, setNameQuery] = useState('');
+  const [searchingName, setSearchingName] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -114,6 +122,49 @@ export const GuestEventPage = () => {
     }
   };
 
+  const handleNameSearch = async (e) => {
+    e?.preventDefault();
+    if (!nameQuery.trim() || searchingName) return;
+
+    setSearchingName(true);
+    try {
+      const res = await guestApi.searchByName(publicId, nameQuery.trim());
+      const searchData = res.data || {};
+      const matches = searchData.matches || [];
+      const sessionToken = searchData.sessionToken || '';
+      const expiresAt = searchData.expiresAt || '';
+      const taggedName = searchData.taggedName || '';
+      const taggedUsername = searchData.taggedUsername || '';
+
+      if (!matches || matches.length === 0) {
+        setToast({
+          message: `No photos found for "@${nameQuery}". Please check the spelling or take a selfie first.`,
+          type: 'error',
+        });
+        return;
+      }
+
+      sessionStorage.setItem(`fotofetch_${publicId}_matches`, JSON.stringify(matches));
+      sessionStorage.setItem(`fotofetch_${publicId}_session_token`, sessionToken);
+      sessionStorage.setItem(`fotofetch_${publicId}_session_expires`, expiresAt);
+      sessionStorage.setItem(`fotofetch_${publicId}_selfie`, '');
+      sessionStorage.setItem(`fotofetch_${publicId}_face_detected`, 'true');
+      sessionStorage.setItem(`fotofetch_${publicId}_indexing_count`, '0');
+      sessionStorage.setItem(`fotofetch_${publicId}_tagged_name`, taggedName);
+      sessionStorage.setItem(`fotofetch_${publicId}_tagged_username`, taggedUsername);
+
+      navigate(`/guest/${publicId}/results`);
+    } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || 'No tagged identity found with that name/username.';
+      setToast({
+        message: errMsg,
+        type: 'error',
+      });
+    } finally {
+      setSearchingName(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-slate-400 gap-3">
@@ -187,8 +238,84 @@ export const GuestEventPage = () => {
         </div>
 
         {/* Camera / Upload Interactive Box */}
-        <div className="w-full glass-panel rounded-3xl p-6 sm:p-10 border border-white/10 shadow-2xl relative space-y-8 text-center">
-          {selfieMode === 'camera' ? (
+        <div className="w-full glass-panel rounded-3xl p-6 sm:p-10 border border-white/10 shadow-2xl relative space-y-6 text-center">
+          {/* Search Method Tab Toggle (Objective 4: Selfie Search vs Name-based Search) */}
+          <div className="inline-flex p-1 rounded-2xl bg-white/5 border border-white/10 mb-2">
+            <button
+              type="button"
+              onClick={() => setSearchTab('selfie')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                searchTab === 'selfie'
+                  ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-lg shadow-brand-500/25'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              Search by Selfie
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchTab('name')}
+              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                searchTab === 'name'
+                  ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-lg shadow-brand-500/25'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              Search by Tagged Name
+            </button>
+          </div>
+
+          {searchTab === 'name' ? (
+            /* Objective 4: Name-based Retrieval */
+            <div className="space-y-6 max-w-md mx-auto py-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-white">Find Your Photos by Name / Username</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Already tagged your face? Enter your name or unique username (e.g., <span className="font-mono text-brand-400">ali</span> or <span className="font-mono text-brand-400">ali2</span>) to retrieve your photos directly.
+                </p>
+              </div>
+
+              <form onSubmit={handleNameSearch} className="space-y-4">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={nameQuery}
+                    onChange={(e) => setNameQuery(e.target.value)}
+                    placeholder="Enter name or username (e.g. ali2, Sara)"
+                    className="w-full pl-10 pr-4 py-3 rounded-2xl bg-dark-900 border border-white/10 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={searchingName || !nameQuery.trim()}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-sm font-semibold text-white bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-xl shadow-brand-500/25 transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer"
+                >
+                  {searchingName ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Searching Tagged Registry...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-4 h-4" />
+                      Find My Photos
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[11px] text-slate-400 text-left">
+                💡 <span className="text-slate-200">First time at this event?</span> Switch to <span className="text-brand-300 underline cursor-pointer" onClick={() => setSearchTab('selfie')}>Search by Selfie</span> to scan your face and register your unique username.
+              </div>
+            </div>
+          ) : selfieMode === 'camera' ? (
             <CameraCapture
               onCapture={handleCameraCapture}
               onCancel={() => setSelfieMode(null)}

@@ -20,4 +20,6 @@ public class GuestSearchResponse {
     private Boolean faceDetected = true;
     @Builder.Default
     private Long indexingCount = 0L;
+    private String taggedName;
+    private String taggedUsername;
 }

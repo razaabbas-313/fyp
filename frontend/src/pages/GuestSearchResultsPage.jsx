@@ -15,7 +15,9 @@ import {
   Square,
   Eye,
   Check,
-  X
+  X,
+  Tag,
+  User
 } from 'lucide-react';
 import { guestApi } from '../api/guestApi';
 import { Toast } from '../components/Toast';
@@ -36,6 +38,12 @@ export const GuestSearchResultsPage = () => {
   const [sessionExpired, setSessionExpired] = useState(false);
   const [faceDetected, setFaceDetected] = useState(true);
   const [indexingCount, setIndexingCount] = useState(0);
+
+  // Persistent Face-to-Name Tagging (Objective 4)
+  const [taggedUsername, setTaggedUsername] = useState('');
+  const [taggedName, setTaggedName] = useState('');
+  const [tagNameInput, setTagNameInput] = useState('');
+  const [taggingName, setTaggingName] = useState(false);
 
   // Selection state
   const [selectedPhotoIds, setSelectedPhotoIds] = useState(new Set());
@@ -87,6 +95,15 @@ export const GuestSearchResultsPage = () => {
     }
     if (storedIndexingCount) {
       setIndexingCount(parseInt(storedIndexingCount, 10) || 0);
+    }
+
+    const storedTaggedUsername = sessionStorage.getItem(`fotofetch_${publicId}_tagged_username`);
+    const storedTaggedName = sessionStorage.getItem(`fotofetch_${publicId}_tagged_name`);
+    if (storedTaggedUsername) {
+      setTaggedUsername(storedTaggedUsername);
+    }
+    if (storedTaggedName) {
+      setTaggedName(storedTaggedName);
     }
 
     // Load event details
@@ -216,6 +233,47 @@ export const GuestSearchResultsPage = () => {
       }
     } finally {
       setZipping(false);
+    }
+  };
+
+  const handleTagSubmit = async (e) => {
+    e.preventDefault();
+    if (!tagNameInput.trim() || taggingName) return;
+
+    const sessionToken = sessionStorage.getItem(`fotofetch_${publicId}_session_token`);
+    if (!sessionToken || checkIsSessionExpired()) {
+      setSessionExpired(true);
+      setToast({
+        message: 'Your search session has expired. Please take another selfie before tagging.',
+        type: 'error'
+      });
+      return;
+    }
+
+    setTaggingName(true);
+    try {
+      const res = await guestApi.registerGuestTag(publicId, tagNameInput.trim(), sessionToken);
+      const identityData = res.data || {};
+      const newUsername = identityData.username;
+      const newName = identityData.name;
+
+      setTaggedUsername(newUsername);
+      setTaggedName(newName);
+      sessionStorage.setItem(`fotofetch_${publicId}_tagged_username`, newUsername);
+      sessionStorage.setItem(`fotofetch_${publicId}_tagged_name`, newName);
+
+      setToast({
+        message: `Success! You are now tagged as @${newUsername}. You can search your photos anytime using this username!`,
+        type: 'success'
+      });
+      setTagNameInput('');
+    } catch (err) {
+      setToast({
+        message: 'Tagging failed: ' + (err.response?.data?.message || err.message),
+        type: 'error'
+      });
+    } finally {
+      setTaggingName(false);
     }
   };
 
@@ -380,7 +438,11 @@ export const GuestSearchResultsPage = () => {
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
                 {matches.length > 0 ? (
-                  <>We Found {matches.length} {matches.length === 1 ? 'Photo' : 'Photos'} of You!</>
+                  taggedUsername ? (
+                    <>Welcome, {taggedName || 'Guest'}! <span className="text-brand-400 font-mono text-xl font-normal">(@{taggedUsername})</span></>
+                  ) : (
+                    <>We Found {matches.length} {matches.length === 1 ? 'Photo' : 'Photos'} of You!</>
+                  )
                 ) : !faceDetected ? (
                   <>No Face Detected</>
                 ) : (
@@ -415,6 +477,70 @@ export const GuestSearchResultsPage = () => {
             </div>
           )}
         </div>
+
+        {/* Face-to-Name Tagging Card (Objective 4) */}
+        {matches.length > 0 && !taggedUsername && (
+          <div className="glass-panel rounded-2xl p-5 border border-brand-500/30 bg-brand-500/[0.03] space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-brand-400" />
+                <span className="text-xs font-bold text-white">Tag Your Face to Your Name (Objective 4)</span>
+              </div>
+              <span className="text-[10px] text-brand-300 font-mono bg-brand-500/10 px-2 py-0.5 rounded-full border border-brand-500/20">
+                Persistent Identity
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Want to retrieve your photos later without taking another selfie? Enter your name below to register your face. We'll assign you a unique username (e.g. <span className="font-mono text-brand-300">ali</span> or <span className="font-mono text-brand-300">ali2</span>) so you can search anytime by name.
+            </p>
+            <form onSubmit={handleTagSubmit} className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+              <div className="relative w-full sm:flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter your name (e.g. Ali, Sara)"
+                  value={tagNameInput}
+                  onChange={(e) => setTagNameInput(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-dark-900 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={taggingName || !tagNameInput.trim()}
+                className="w-full sm:w-auto px-5 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                {taggingName ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Tagging...
+                  </>
+                ) : (
+                  <>
+                    <Tag className="w-3.5 h-3.5" />
+                    Tag My Photos
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Successfully Tagged Notification Badge */}
+        {taggedUsername && (
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="text-xs text-slate-200">
+                You are registered as <span className="font-mono font-bold text-emerald-300">@{taggedUsername}</span> ({taggedName || 'Guest'}). You can search your photos anytime using this username!
+              </div>
+            </div>
+            <span className="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full shrink-0">
+              Identity Active
+            </span>
+          </div>
+        )}
 
         {/* Action / Selection Header */}
         {matches.length > 0 && (
