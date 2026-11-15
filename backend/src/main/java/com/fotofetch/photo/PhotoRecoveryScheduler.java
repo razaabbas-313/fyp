@@ -2,6 +2,7 @@ package com.fotofetch.photo;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -16,32 +17,34 @@ public class PhotoRecoveryScheduler {
     private final PhotoRepository photoRepository;
     private final PhotoProcessingService photoProcessingService;
 
+    @Value("${fotofetch.processing.max-retries:3}")
+    private int maxRetries;
+
     /**
      * Self-healing background recovery.
-     * Recovers any photos that were marked UPLOADED but whose background processing
-     * was interrupted by a server restart or memory event on Render.
+     * Recovers:
+     * 1. Photos interrupted during a server restart or memory crash (stuck in PROCESSING or INDEXING > 5m)
+     * 2. Photos whose thumbnail generation or Rekognition indexing failed and are due for their next retry
+     * 3. Respects nextRetryAt and processingAttempts < maxRetries
      */
-    @Scheduled(fixedDelay = 180000, initialDelay = 60000)
+    @Scheduled(fixedDelay = 60000, initialDelay = 30000)
     public void recoverStuckPhotos() {
-        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime stuckBefore = now.minusMinutes(5);
 
-        List<Photo> stuckPhotos = photoRepository.findByUploadStatusAndThumbnailStatusIn(
-                UploadStatus.UPLOADED,
-                List.of(ThumbnailStatus.PENDING, ThumbnailStatus.PROCESSING)
-        );
+        List<Photo> recoverablePhotos = photoRepository.findRecoverablePhotos(now, stuckBefore, maxRetries);
 
-        if (stuckPhotos.isEmpty()) {
+        if (recoverablePhotos.isEmpty()) {
             return;
         }
 
-        log.info("PhotoRecoveryScheduler: Found {} potentially stuck photos. Checking timestamps...", stuckPhotos.size());
+        log.info("PhotoRecoveryScheduler: Found {} recoverable photo(s) due for processing/retry", recoverablePhotos.size());
 
-        for (Photo photo : stuckPhotos) {
-            if (photo.getCreatedAt() != null && photo.getCreatedAt().isBefore(fiveMinutesAgo)) {
-                String collectionId = photo.getEvent().getRekognitionCollectionId();
-                log.info("PhotoRecoveryScheduler: Re-submitting stuck photo {} to processing pipeline", photo.getId());
-                photoProcessingService.processPhotoAsync(photo.getId(), collectionId);
-            }
+        for (Photo photo : recoverablePhotos) {
+            String collectionId = photo.getEvent().getRekognitionCollectionId();
+            int nextAttempt = (photo.getProcessingAttempts() != null ? photo.getProcessingAttempts() : 0) + 1;
+            log.info("PhotoRecoveryScheduler: Submitting photo {} (attempt #{}) to pipeline", photo.getId(), nextAttempt);
+            photoProcessingService.processPhotoAsync(photo.getId(), collectionId);
         }
     }
 }

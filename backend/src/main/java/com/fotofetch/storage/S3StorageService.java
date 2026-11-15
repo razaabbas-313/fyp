@@ -152,21 +152,24 @@ public class S3StorageService {
     }
 
     public boolean doesObjectExist(String key) {
+        return getObjectMetadata(key).isPresent();
+    }
+
+    public java.util.Optional<HeadObjectResponse> getObjectMetadata(String key) {
         if (key == null || key.isBlank()) {
-            return false;
+            return java.util.Optional.empty();
         }
         try {
             HeadObjectRequest headRequest = HeadObjectRequest.builder()
                     .bucket(bucketName)
                     .key(key)
                     .build();
-            s3Client.headObject(headRequest);
-            return true;
+            return java.util.Optional.of(s3Client.headObject(headRequest));
         } catch (NoSuchKeyException ex) {
-            return false;
+            return java.util.Optional.empty();
         } catch (Exception ex) {
             log.warn("Failed headObject check for key {}: {}", key, ex.getMessage());
-            return false;
+            return java.util.Optional.empty();
         }
     }
 }

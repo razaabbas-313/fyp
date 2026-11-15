@@ -1,5 +1,6 @@
 package com.fotofetch.storage;
 
+import com.fotofetch.common.BadRequestException;
 import lombok.extern.slf4j.Slf4j;
 import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.stereotype.Service;
@@ -33,8 +34,21 @@ public class ThumbnailService {
     }
 
     public byte[] generateThumbnail(byte[] originalBytes) throws IOException {
+        validateImageDecoding(originalBytes);
         try (ByteArrayInputStream in = new ByteArrayInputStream(originalBytes)) {
             return generateThumbnail(in);
+        }
+    }
+
+    public void validateImageDecoding(byte[] originalBytes) throws IOException {
+        if (originalBytes == null || originalBytes.length == 0) {
+            throw new BadRequestException("Cannot decode empty image payload");
+        }
+        try (ByteArrayInputStream in = new ByteArrayInputStream(originalBytes)) {
+            java.awt.image.BufferedImage img = javax.imageio.ImageIO.read(in);
+            if (img == null) {
+                throw new BadRequestException("Unsupported image format or corrupt image data could not be decoded");
+            }
         }
     }
 }

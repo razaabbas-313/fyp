@@ -37,6 +37,7 @@ public class GuestController {
     private final PhotoService photoService;
     private final PhotoRepository photoRepository;
     private final ZipService zipService;
+    private final com.fotofetch.guest.session.GuestSessionService guestSessionService;
 
     @GetMapping("/{publicId}")
     public ResponseEntity<ApiResponse<PublicEventResponse>> getPublicEvent(@PathVariable String publicId) {
@@ -51,7 +52,7 @@ public class GuestController {
     }
 
     @PostMapping(value = "/{publicId}/search", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ApiResponse<List<SearchMatchResponse>>> searchGuestPhotos(
+    public ResponseEntity<ApiResponse<com.fotofetch.photo.dto.GuestSearchResponse>> searchGuestPhotos(
             @PathVariable String publicId,
             @RequestParam("selfie") MultipartFile selfie,
             @RequestParam(value = "threshold", required = false) Float threshold) {
@@ -62,11 +63,16 @@ public class GuestController {
         if (selfie.getSize() > 5 * 1024 * 1024) {
             throw new BadRequestException("Selfie image must be 5MB or smaller");
         }
+        if (threshold != null && (threshold < 70.0f || threshold > 99.0f)) {
+            throw new BadRequestException("Similarity threshold must be between 70.0% and 99.0%");
+        }
 
         try {
             byte[] selfieBytes = selfie.getBytes();
-            List<SearchMatchResponse> matches = photoService.searchGuestPhotos(publicId, selfieBytes, threshold);
-            return ResponseEntity.ok(ApiResponse.success(matches, "Found " + matches.size() + " matching photos"));
+            com.fotofetch.photo.dto.GuestSearchResponse response =
+                    photoService.searchGuestPhotosWithSession(publicId, selfieBytes, threshold);
+            int count = response.getMatches() != null ? response.getMatches().size() : 0;
+            return ResponseEntity.ok(ApiResponse.success(response, "Found " + count + " matching photos"));
         } catch (IOException ex) {
             log.error("Failed to read selfie bytes", ex);
             throw new BadRequestException("Unable to read selfie image");
@@ -76,7 +82,14 @@ public class GuestController {
     @GetMapping("/{publicId}/photos/{photoId}/download")
     public ResponseEntity<ApiResponse<Map<String, String>>> getPhotoDownloadUrl(
             @PathVariable String publicId,
-            @PathVariable UUID photoId) {
+            @PathVariable UUID photoId,
+            @RequestHeader(value = "X-Guest-Session", required = false) String guestSessionHeader,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader,
+            @RequestParam(value = "token", required = false) String tokenParam) {
+
+        String token = resolveGuestToken(guestSessionHeader, authHeader, tokenParam);
+        guestSessionService.authorizePhotoDownload(token, publicId, photoId);
+
         String downloadUrl = photoService.getPhotoDownloadUrl(publicId, photoId);
         return ResponseEntity.ok(ApiResponse.success(Map.of("downloadUrl", downloadUrl)));
     }
@@ -85,12 +98,18 @@ public class GuestController {
     public void downloadPhotosZip(
             @PathVariable String publicId,
             @Valid @RequestBody ZipDownloadRequest request,
+            @RequestHeader(value = "X-Guest-Session", required = false) String guestSessionHeader,
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader,
+            @RequestParam(value = "token", required = false) String tokenParam,
             HttpServletResponse response) throws IOException {
+
+        String token = resolveGuestToken(guestSessionHeader, authHeader, tokenParam);
+        List<UUID> authorizedIds = guestSessionService.authorizeZipDownload(token, publicId, request.getPhotoIds());
 
         Event event = eventService.getEventEntityByPublicId(publicId);
 
-        // Fetch and verify only photos that strictly belong to this event
-        List<Photo> photos = photoRepository.findByEventIdAndIdIn(event.getId(), request.getPhotoIds());
+        // Fetch only photos that belong to this event and were authorized in the guest session
+        List<Photo> photos = photoRepository.findByEventIdAndIdIn(event.getId(), authorizedIds);
 
         if (photos.isEmpty()) {
             response.sendError(HttpServletResponse.SC_NOT_FOUND, "No valid photos found for download");
@@ -102,5 +121,18 @@ public class GuestController {
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + zipFilename + "\"");
 
         zipService.streamPhotosZip(photos, response.getOutputStream());
+    }
+
+    private String resolveGuestToken(String guestSessionHeader, String authHeader, String tokenParam) {
+        if (guestSessionHeader != null && !guestSessionHeader.isBlank()) {
+            return guestSessionHeader;
+        }
+        if (authHeader != null && !authHeader.isBlank()) {
+            return authHeader;
+        }
+        if (tokenParam != null && !tokenParam.isBlank()) {
+            return tokenParam;
+        }
+        throw new com.fotofetch.common.UnauthorizedException("Guest session token is required to download photos");
     }
 }

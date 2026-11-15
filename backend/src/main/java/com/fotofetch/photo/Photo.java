@@ -76,6 +76,19 @@ public class Photo implements Persistable<UUID> {
     @Builder.Default
     private Integer facesFound = 0;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer processingAttempts = 0;
+
+    private LocalDateTime lastProcessingAttemptAt;
+
+    private LocalDateTime nextRetryAt;
+
+    @Column(length = 1024)
+    private String lastProcessingError;
+
+    private LocalDateTime processingUpdatedAt;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

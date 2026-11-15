@@ -23,9 +23,15 @@ spring:
       max-lifetime: 900000
       connection-timeout: 20000
     
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -43,8 +49,10 @@ spring:
 # FotoFetch Application Properties
 fotofetch:
   jwt:
-    secret: ${JWT_SECRET:fotofetch-super-secret-key-that-is-at-least-256-bits-long-for-jwt-signing-2026}
+    secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://fotofetch.vercel.app,http://localhost:5173}
   
   aws:
     region: ${AWS_REGION:ap-south-1}

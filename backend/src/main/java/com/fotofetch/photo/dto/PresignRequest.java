@@ -28,6 +28,7 @@ public class PresignRequest {
         private String filename;
 
         @NotBlank(message = "Content type is required")
+        @Pattern(regexp = "^image/(jpeg|jpg|png|webp)$", message = "Unsupported image format. Allowed formats: image/jpeg, image/png, image/webp")
         private String contentType;
 
         @NotNull(message = "File size is required")

@@ -29,9 +29,13 @@ export const GuestSearchResultsPage = () => {
   const [selfieUrl, setSelfieUrl] = useState('');
   const [event, setEvent] = useState(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
+  const [serviceUnavailable, setServiceUnavailable] = useState(false);
   const [zipping, setZipping] = useState(false);
   const [downloadingPhotoId, setDownloadingPhotoId] = useState(null);
   const [toast, setToast] = useState({ message: '', type: 'info' });
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(true);
+  const [indexingCount, setIndexingCount] = useState(0);
 
   // Selection state
   const [selectedPhotoIds, setSelectedPhotoIds] = useState(new Set());
@@ -40,26 +44,61 @@ export const GuestSearchResultsPage = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
+  const checkIsSessionExpired = () => {
+    const storedExpires = sessionStorage.getItem(`fotofetch_${publicId}_session_expires`);
+    if (storedExpires) {
+      const expiryTime = new Date(storedExpires).getTime();
+      if (!isNaN(expiryTime) && expiryTime < Date.now()) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   useEffect(() => {
-    // Load cached matches
+    // Load cached matches and session info
     const storedMatches = sessionStorage.getItem(`fotofetch_${publicId}_matches`);
     const storedSelfie = sessionStorage.getItem(`fotofetch_${publicId}_selfie`);
+    const storedToken = sessionStorage.getItem(`fotofetch_${publicId}_session_token`);
+    const storedFaceDetected = sessionStorage.getItem(`fotofetch_${publicId}_face_detected`);
+    const storedIndexingCount = sessionStorage.getItem(`fotofetch_${publicId}_indexing_count`);
 
     if (storedMatches) {
       try {
-        setMatches(JSON.parse(storedMatches));
+        const parsed = JSON.parse(storedMatches);
+        setMatches(parsed);
+        if (parsed.length > 0 && !storedToken) {
+          setSessionExpired(true);
+        }
       } catch (e) {
         console.error('Error parsing stored matches', e);
       }
     }
+
+    if (checkIsSessionExpired()) {
+      setSessionExpired(true);
+    }
+
     if (storedSelfie) {
       setSelfieUrl(storedSelfie);
     }
+    if (storedFaceDetected !== null) {
+      setFaceDetected(storedFaceDetected === 'true');
+    }
+    if (storedIndexingCount) {
+      setIndexingCount(parseInt(storedIndexingCount, 10) || 0);
+    }
 
-    // Load event name
+    // Load event details
     guestApi.getPublicEvent(publicId)
-      .then((res) => setEvent(res.data))
-      .catch((err) => console.error(err))
+      .then((res) => {
+        setEvent(res.data);
+        setServiceUnavailable(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load event:', err);
+        setServiceUnavailable(true);
+      })
       .finally(() => setLoadingEvent(false));
   }, [publicId]);
 
@@ -95,13 +134,22 @@ export const GuestSearchResultsPage = () => {
 
   const handleDownloadSingle = async (match, e) => {
     e?.stopPropagation();
+
+    const sessionToken = sessionStorage.getItem(`fotofetch_${publicId}_session_token`);
+    if (!sessionToken || checkIsSessionExpired()) {
+      setSessionExpired(true);
+      setToast({
+        message: 'Your search session has expired. Please take another selfie to download photos.',
+        type: 'error'
+      });
+      return;
+    }
+
     setDownloadingPhotoId(match.photoId);
     try {
-      let downloadUrl = match.downloadUrl;
-      if (!downloadUrl) {
-        const res = await guestApi.getPhotoDownloadUrl(publicId, match.photoId);
-        downloadUrl = res.data.downloadUrl;
-      }
+      const res = await guestApi.getPhotoDownloadUrl(publicId, match.photoId, sessionToken);
+      const downloadUrl = res.data?.downloadUrl || res.data;
+
       // Create temporary anchor to trigger native download
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -112,7 +160,15 @@ export const GuestSearchResultsPage = () => {
       document.body.removeChild(link);
       setToast({ message: 'Downloading original HD photo...', type: 'success' });
     } catch (err) {
-      setToast({ message: 'Download failed: ' + err.message, type: 'error' });
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        setSessionExpired(true);
+        setToast({
+          message: 'Download session expired or unauthorized. Please take another selfie to refresh.',
+          type: 'error'
+        });
+      } else {
+        setToast({ message: 'Download failed: ' + (err.response?.data?.message || err.message), type: 'error' });
+      }
     } finally {
       setDownloadingPhotoId(null);
     }
@@ -121,11 +177,21 @@ export const GuestSearchResultsPage = () => {
   const handleDownloadZip = async (photoIdsToDownload, label = 'ZIP') => {
     if (!photoIdsToDownload || photoIdsToDownload.length === 0 || zipping) return;
 
+    const sessionToken = sessionStorage.getItem(`fotofetch_${publicId}_session_token`);
+    if (!sessionToken || checkIsSessionExpired()) {
+      setSessionExpired(true);
+      setToast({
+        message: 'Your search session has expired. Please take another selfie to download photos.',
+        type: 'error'
+      });
+      return;
+    }
+
     setZipping(true);
     setToast({ message: `Preparing your ${label} archive (${photoIdsToDownload.length} photos)...`, type: 'info' });
 
     try {
-      const blob = await guestApi.downloadZipBlob(publicId, photoIdsToDownload);
+      const blob = await guestApi.downloadZipBlob(publicId, photoIdsToDownload, sessionToken);
 
       // Trigger browser download of ZIP
       const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/zip' }));
@@ -139,7 +205,15 @@ export const GuestSearchResultsPage = () => {
 
       setToast({ message: `${label} archive downloaded successfully!`, type: 'success' });
     } catch (err) {
-      setToast({ message: 'ZIP generation failed: ' + err.message, type: 'error' });
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        setSessionExpired(true);
+        setToast({
+          message: 'Download session expired or unauthorized. Please take another selfie to refresh.',
+          type: 'error'
+        });
+      } else {
+        setToast({ message: 'ZIP generation failed: ' + (err.response?.data?.message || err.message), type: 'error' });
+      }
     } finally {
       setZipping(false);
     }
@@ -237,7 +311,60 @@ export const GuestSearchResultsPage = () => {
       )}
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-28">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 pb-28">
+        {/* Service Unavailable Alert (Condition 5) */}
+        {serviceUnavailable && (
+          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-white">Service Temporarily Unavailable</p>
+                <p className="text-[11px] text-slate-300">
+                  Unable to connect to the photo recognition service. Please check your connection and try again.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Session Expired / Invalid Session Banner (Condition 6) */}
+        {sessionExpired && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-white">Your Guest Search Session Has Expired</p>
+                <p className="text-[11px] text-slate-300">
+                  For privacy and download security, guest search tokens expire after 2 hours. Take a quick selfie to refresh your session.
+                </p>
+              </div>
+            </div>
+            <Link
+              to={`/guest/${publicId}`}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 transition-colors shrink-0 shadow-lg shadow-amber-500/20"
+            >
+              Take Another Selfie
+            </Link>
+          </div>
+        )}
+
+        {/* AI Indexing In Progress Banner (Condition 4) */}
+        {indexingCount > 0 && (
+          <div className="p-4 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center gap-3">
+            <Loader2 className="w-4 h-4 text-brand-400 animate-spin shrink-0" />
+            <div className="text-xs text-slate-300">
+              <span className="font-semibold text-white">AI Indexing in Progress: </span>
+              {indexingCount} photo{indexingCount > 1 ? 's are' : ' is'} currently being processed for this event. More matching photos may appear once processing finishes.
+            </div>
+          </div>
+        )}
+
         {/* Results Banner */}
         <div className="glass-panel rounded-3xl p-6 sm:p-8 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-5 text-center sm:text-left">
@@ -254,6 +381,8 @@ export const GuestSearchResultsPage = () => {
               <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
                 {matches.length > 0 ? (
                   <>We Found {matches.length} {matches.length === 1 ? 'Photo' : 'Photos'} of You!</>
+                ) : !faceDetected ? (
+                  <>No Face Detected</>
                 ) : (
                   <>No Matching Photos Found</>
                 )}
@@ -317,29 +446,62 @@ export const GuestSearchResultsPage = () => {
         {/* Matches Grid or Empty State */}
         {matches.length === 0 ? (
           /* Empty State */
-          <div className="glass-panel rounded-3xl p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-12">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-              <AlertCircle className="w-8 h-8" />
+          !faceDetected ? (
+            /* Condition 1: No Face Detected */
+            <div className="glass-panel rounded-3xl p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-12">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-white">No Face Detected in Selfie</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Our AI could not find a clear human face in your selfie. To ensure accurate matching:
+              </p>
+              <ul className="text-xs text-slate-300 text-left list-disc list-inside space-y-1 bg-white/[0.02] p-4 rounded-xl border border-white/5">
+                <li>Look directly into the camera in a well-lit area</li>
+                <li>Avoid dark backlighting or heavy shadows</li>
+                <li>Remove sunglasses, face masks, or heavy coverings</li>
+              </ul>
+              <div className="pt-2">
+                <Link
+                  to={`/guest/${publicId}`}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/25"
+                >
+                  <Camera className="w-4 h-4" />
+                  Snap a Clear Selfie
+                </Link>
+              </div>
             </div>
-            <h3 className="text-lg font-bold text-white">No Matches Found in This Event</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              We couldn't detect a matching face with sufficient confidence. Try snapping another selfie with:
-            </p>
-            <ul className="text-xs text-slate-300 text-left list-disc list-inside space-y-1 bg-white/[0.02] p-4 rounded-xl border border-white/5">
-              <li>Better front-facing lighting</li>
-              <li>Neutral expression or slight smile</li>
-              <li>Removing sunglasses or heavy face coverings</li>
-            </ul>
-            <div className="pt-2">
-              <Link
-                to={`/guest/${publicId}`}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/25"
-              >
-                <Camera className="w-4 h-4" />
-                Try Another Selfie
-              </Link>
+          ) : (
+            /* Condition 2: Face Detected, but no matches */
+            <div className="glass-panel rounded-3xl p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-12">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-white">No Matches Found in This Event</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                We detected your face, but couldn't find matching photos with high confidence. Try snapping another selfie with:
+              </p>
+              <ul className="text-xs text-slate-300 text-left list-disc list-inside space-y-1 bg-white/[0.02] p-4 rounded-xl border border-white/5">
+                <li>Better front-facing lighting</li>
+                <li>Neutral expression or natural smile</li>
+                <li>Removing sunglasses or tinted eyewear</li>
+              </ul>
+              {indexingCount > 0 && (
+                <p className="text-[11px] text-brand-300 bg-brand-500/10 p-2.5 rounded-xl border border-brand-500/20">
+                  💡 Note: {indexingCount} photo{indexingCount > 1 ? 's are' : ' is'} still being processed by the photographer. Check back soon!
+                </p>
+              )}
+              <div className="pt-2">
+                <Link
+                  to={`/guest/${publicId}`}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/25"
+                >
+                  <Camera className="w-4 h-4" />
+                  Try Another Selfie
+                </Link>
+              </div>
             </div>
-          </div>
+          )
         ) : (
           /* Photo Grid */
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">

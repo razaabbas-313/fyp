@@ -12,7 +12,7 @@ export const guestApi = {
   searchBySelfie: (publicId, selfieBlob, threshold = 80) => {
     const formData = new FormData();
     formData.append('selfie', selfieBlob, 'selfie.jpg');
-    if (threshold) {
+    if (threshold && threshold >= 70 && threshold <= 99) {
       formData.append('threshold', threshold);
     }
     return api.post(`/public/events/${publicId}/search`, formData, {
@@ -22,15 +22,25 @@ export const guestApi = {
     });
   },
 
-  getPhotoDownloadUrl: (publicId, photoId) => {
-    return api.get(`/public/events/${publicId}/photos/${photoId}/download`);
+  getPhotoDownloadUrl: (publicId, photoId, sessionToken) => {
+    const headers = {};
+    if (sessionToken) {
+      headers['X-Guest-Session'] = sessionToken;
+      headers['Authorization'] = `Bearer ${sessionToken}`;
+    }
+    return api.get(`/public/events/${publicId}/photos/${photoId}/download`, { headers });
   },
 
-  downloadZipBlob: (publicId, photoIds) => {
+  downloadZipBlob: (publicId, photoIds, sessionToken) => {
+    const headers = {};
+    if (sessionToken) {
+      headers['X-Guest-Session'] = sessionToken;
+      headers['Authorization'] = `Bearer ${sessionToken}`;
+    }
     return api.post(
       `/public/events/${publicId}/photos/zip`,
       { photoIds },
-      { responseType: 'blob' }
+      { responseType: 'blob', headers }
     );
   },
 };

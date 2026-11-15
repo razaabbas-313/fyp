@@ -134,10 +134,48 @@ Because guests and photographers upload photos directly to S3 via presigned PUT 
 > [!IMPORTANT]
 > **Why is this necessary?** The web app on Vercel uploads photos directly from the user's browser to AWS S3 using presigned PUT URLs for maximum speed and zero server bottleneck. If CORS is not configured in the AWS S3 Console, the browser will block the upload preflight `OPTIONS` request.
 
-### IAM User Permissions
-Your AWS IAM credentials require the following AWS managed policies:
-- `AmazonS3FullAccess` (or restricted access to your FotoFetch bucket)
-- `AmazonRekognitionFullAccess`
+### IAM User Least-Privilege Policy (Recommended)
+Attach the following inline IAM policy to your AWS IAM user instead of broad managed policies like `AdministratorAccess` or `AmazonS3FullAccess`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "FotoFetchS3BucketAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::<your-fotofetch-bucket>"
+    },
+    {
+      "Sid": "FotoFetchS3ObjectAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:HeadObject"
+      ],
+      "Resource": "arn:aws:s3:::<your-fotofetch-bucket>/*"
+    },
+    {
+      "Sid": "FotoFetchRekognitionOperations",
+      "Effect": "Allow",
+      "Action": [
+        "rekognition:CreateCollection",
+        "rekognition:DeleteCollection",
+        "rekognition:IndexFaces",
+        "rekognition:SearchFacesByImage",
+        "rekognition:DeleteFaces",
+        "rekognition:ListFaces"
+      ],
+      "Resource": "arn:aws:rekognition:*:*:collection/fotofetch-event-*"
+    }
+  ]
+}
+```
 
 ---
 

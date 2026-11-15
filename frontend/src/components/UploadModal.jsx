@@ -3,11 +3,15 @@ import { UploadCloud, CheckCircle2, AlertCircle, X, Loader2, Image as ImageIcon,
 import { Modal } from './Modal';
 import { photoApi } from '../api/photoApi';
 
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+
 export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState({}); // { [photoId]: { progress: 0-100, status: 'queued'|'uploading'|'completed'|'failed' } }
   const [isUploading, setIsUploading] = useState(false);
   const [overallStatus, setOverallStatus] = useState('');
+  const [validationWarning, setValidationWarning] = useState('');
   const fileInputRef = useRef(null);
 
   const resetState = () => {
@@ -15,6 +19,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
     setUploadProgress({});
     setIsUploading(false);
     setOverallStatus('');
+    setValidationWarning('');
   };
 
   const handleClose = () => {
@@ -27,22 +32,48 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
     onClose();
   };
 
+  const validateAndAddFiles = (fileList) => {
+    setValidationWarning('');
+    const newFiles = Array.from(fileList);
+    const valid = [];
+    const errors = [];
+
+    for (const file of newFiles) {
+      const isAllowedType = ALLOWED_MIME_TYPES.includes(file.type) ||
+        /\.(jpe?g|png|webp)$/i.test(file.name);
+
+      if (!isAllowedType) {
+        errors.push(`"${file.name}": Unsupported format (must be JPG, PNG, or WebP)`);
+        continue;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        errors.push(`"${file.name}": Exceeds 25MB maximum limit (${(file.size / (1024 * 1024)).toFixed(1)}MB)`);
+        continue;
+      }
+
+      valid.push(file);
+    }
+
+    if (errors.length > 0) {
+      setValidationWarning(errors.join(' • '));
+    }
+
+    if (valid.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...valid]);
+    }
+  };
+
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
-      const validFiles = Array.from(e.target.files).filter((file) => {
-        return file.type.startsWith('image/');
-      });
-      setSelectedFiles((prev) => [...prev, ...validFiles]);
+      validateAndAddFiles(e.target.files);
     }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const validFiles = Array.from(e.dataTransfer.files).filter((file) => {
-        return file.type.startsWith('image/');
-      });
-      setSelectedFiles((prev) => [...prev, ...validFiles]);
+      validateAndAddFiles(e.dataTransfer.files);
     }
   };
 
@@ -157,7 +188,8 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
       }
     } catch (err) {
       console.error('Upload process failed:', err);
-      setOverallStatus(`Upload failed: ${err.message}`);
+      const msg = err.response?.data?.message || err.message || 'Upload process failed';
+      setOverallStatus(`Upload failed: ${msg}`);
       setIsUploading(false);
     }
   };
@@ -178,6 +210,17 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
       maxWidth="max-w-2xl"
     >
       <div className="space-y-5">
+        {/* Validation Warning Alert */}
+        {validationWarning && (
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 leading-relaxed">
+              <span className="font-semibold text-white">Notice: </span>
+              {validationWarning}
+            </div>
+          </div>
+        )}
+
         {/* Dropzone - shown when not started yet */}
         {!isUploading && !hasUploadProgress && (
           <div
@@ -190,7 +233,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
               ref={fileInputRef}
               type="file"
               multiple
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={handleFileChange}
               className="hidden"
             />

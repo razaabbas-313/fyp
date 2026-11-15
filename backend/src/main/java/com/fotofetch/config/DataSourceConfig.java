@@ -27,6 +27,21 @@ public class DataSourceConfig {
     @Value("${spring.datasource.password:#{null}}")
     private String springDatasourcePassword;
 
+    @Value("${spring.datasource.hikari.maximum-pool-size:5}")
+    private int maximumPoolSize;
+
+    @Value("${spring.datasource.hikari.minimum-idle:2}")
+    private int minimumIdle;
+
+    @Value("${spring.datasource.hikari.connection-timeout:20000}")
+    private long connectionTimeout;
+
+    @Value("${spring.datasource.hikari.idle-timeout:300000}")
+    private long idleTimeout;
+
+    @Value("${spring.datasource.hikari.max-lifetime:900000}")
+    private long maxLifetime;
+
     @Bean
     @Primary
     public DataSource dataSource() {
@@ -70,11 +85,11 @@ public class DataSourceConfig {
             configureStandard(config);
         }
 
-        config.setMaximumPoolSize(10);
-        config.setMinimumIdle(2);
-        config.setConnectionTimeout(30000);
-        config.setIdleTimeout(600000);
-        config.setMaxLifetime(1800000);
+        config.setMaximumPoolSize(maximumPoolSize);
+        config.setMinimumIdle(minimumIdle);
+        config.setConnectionTimeout(connectionTimeout);
+        config.setIdleTimeout(idleTimeout);
+        config.setMaxLifetime(maxLifetime);
 
         return new HikariDataSource(config);
     }

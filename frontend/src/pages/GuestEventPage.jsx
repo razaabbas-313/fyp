@@ -9,7 +9,8 @@ import {
   Loader2,
   Lock,
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { guestApi } from '../api/guestApi';
 import { CameraCapture } from '../components/CameraCapture';
@@ -28,6 +29,7 @@ export const GuestEventPage = () => {
   const [selfieBlob, setSelfieBlob] = useState(null);
   const [selfiePreview, setSelfiePreview] = useState(null);
   const [searching, setSearching] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'info' });
 
   const fileInputRef = useRef(null);
@@ -73,16 +75,38 @@ export const GuestEventPage = () => {
       return;
     }
 
+    if (!consentGiven) {
+      setToast({
+        message: 'Please review and accept the biometric privacy consent before scanning.',
+        type: 'error',
+      });
+      return;
+    }
+
     setSearching(true);
     try {
       const res = await guestApi.searchBySelfie(publicId, selfieBlob);
-      // Store results in sessionStorage for results page
-      sessionStorage.setItem(`fotofetch_${publicId}_matches`, JSON.stringify(res.data || []));
+      const searchData = res.data || {};
+      const matches = searchData.matches || [];
+      const sessionToken = searchData.sessionToken || '';
+      const expiresAt = searchData.expiresAt || '';
+
+      const faceDetected = searchData.faceDetected !== false;
+      const indexingCount = searchData.indexingCount || 0;
+
+      // Securely store session authorization token and matches in sessionStorage
+      sessionStorage.setItem(`fotofetch_${publicId}_matches`, JSON.stringify(matches));
+      sessionStorage.setItem(`fotofetch_${publicId}_session_token`, sessionToken);
+      sessionStorage.setItem(`fotofetch_${publicId}_session_expires`, expiresAt);
       sessionStorage.setItem(`fotofetch_${publicId}_selfie`, selfiePreview || '');
+      sessionStorage.setItem(`fotofetch_${publicId}_face_detected`, JSON.stringify(faceDetected));
+      sessionStorage.setItem(`fotofetch_${publicId}_indexing_count`, indexingCount.toString());
+
       navigate(`/guest/${publicId}/results`);
     } catch (err) {
+      const errMsg = err.response?.data?.message || err.message || 'Facial recognition search failed.';
       setToast({
-        message: err.message || 'Facial recognition search failed. Ensure your face is clearly visible.',
+        message: errMsg,
         type: 'error',
       });
     } finally {
@@ -180,10 +204,25 @@ export const GuestEventPage = () => {
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full bg-emerald-500 text-white text-[11px] font-bold shadow-lg whitespace-nowrap">
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-3.5 py-1 rounded-full bg-emerald-500 text-white text-[11px] font-bold shadow-lg whitespace-nowrap flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
                   Selfie Ready
                 </div>
               </div>
+
+              {/* Guest Biometric Consent Checkbox */}
+              <label className="flex items-start gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-left cursor-pointer hover:bg-white/[0.05] transition-colors max-w-lg mx-auto">
+                <input
+                  type="checkbox"
+                  checked={consentGiven}
+                  onChange={(e) => setConsentGiven(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-700 text-brand-600 focus:ring-brand-500 bg-dark-900 cursor-pointer shrink-0"
+                />
+                <div className="text-[11px] text-slate-300 leading-relaxed">
+                  <span className="font-semibold text-white">Biometric Consent & Privacy Notice: </span>
+                  I agree to temporary, in-memory facial feature matching via AWS Rekognition to retrieve photos of me from this event. My selfie is processed ephemerally in memory and will never be permanently stored. Download authorization sessions remain valid for 2 hours.
+                </div>
+              </label>
 
               <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
                 <button
@@ -197,8 +236,8 @@ export const GuestEventPage = () => {
                 </button>
                 <button
                   onClick={handleSearch}
-                  disabled={searching}
-                  className="flex items-center gap-2.5 px-8 py-3.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-xl shadow-brand-500/25 transition-all hover:scale-105 disabled:opacity-50 cursor-pointer"
+                  disabled={searching || !consentGiven}
+                  className="flex items-center gap-2.5 px-8 py-3.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-600 via-brand-500 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-xl shadow-brand-500/25 transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer"
                 >
                   {searching ? (
                     <>
@@ -270,7 +309,7 @@ export const GuestEventPage = () => {
           <div className="space-y-1">
             <h5 className="text-xs font-semibold text-slate-200">Biometric Privacy Guarantee</h5>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Your selfie is processed ephemerally in-memory by AWS Rekognition solely to find matching photos for this event. For privacy, full event photo galleries are face-protected and never publicly browsable.
+              Your selfie is processed ephemerally in-memory by AWS Rekognition solely to find matching photos for this event. For privacy, full event photo galleries are face-protected and never publicly browsable. To request deletion of event photos, please contact the photographer.
             </p>
           </div>
         </div>

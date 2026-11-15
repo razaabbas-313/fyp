@@ -28,6 +28,7 @@ public class PhotoService {
     private final S3StorageService s3StorageService;
     private final RekognitionService rekognitionService;
     private final PhotoProcessingService photoProcessingService;
+    private final com.fotofetch.guest.session.GuestSessionService guestSessionService;
 
     @Transactional
     public PresignResponse createPresignedUploads(UUID eventId, PresignRequest request, User user) {
@@ -103,13 +104,37 @@ public class PhotoService {
                 continue;
             }
 
-            // Verify the object was actually uploaded to S3
-            if (!s3StorageService.doesObjectExist(photo.getOriginalS3Key())) {
-                log.warn("Photo {} not found in S3 at key: {}, skipping confirmation", photoId, photo.getOriginalS3Key());
+            // Verify the object was actually uploaded to S3 and validate actual size via HeadObject
+            Optional<software.amazon.awssdk.services.s3.model.HeadObjectResponse> headOpt =
+                    s3StorageService.getObjectMetadata(photo.getOriginalS3Key());
+
+            if (headOpt.isEmpty()) {
+                log.warn("Photo {} not found in S3 at key: {}, marking FAILED", photoId, photo.getOriginalS3Key());
+                photo.setUploadStatus(UploadStatus.FAILED);
+                photo.setThumbnailStatus(ThumbnailStatus.FAILED);
+                photo.setIndexingStatus(IndexingStatus.FAILED);
+                photo.setLastProcessingError("Object not found in S3");
+                photoRepository.save(photo);
                 continue;
             }
 
-            log.info("Photo found: {}. Current upload status: {}", photo.getId(), photo.getUploadStatus());
+            software.amazon.awssdk.services.s3.model.HeadObjectResponse head = headOpt.get();
+            long actualSize = head.contentLength() != null ? head.contentLength() : 0L;
+
+            // Reject oversized objects (> 25MB = 26,214,400 bytes)
+            if (actualSize > 26214400L) {
+                log.error("Photo {} in S3 exceeds 25MB limit (actual: {} bytes). Marking FAILED.", photoId, actualSize);
+                photo.setUploadStatus(UploadStatus.FAILED);
+                photo.setThumbnailStatus(ThumbnailStatus.FAILED);
+                photo.setIndexingStatus(IndexingStatus.FAILED);
+                photo.setLastProcessingError("File size (" + actualSize + " bytes) exceeds maximum allowed limit of 25MB");
+                photoRepository.save(photo);
+                continue;
+            }
+
+            photo.setFileSize(actualSize);
+            log.info("Photo found: {}. Actual size: {} bytes. Current upload status: {}",
+                    photo.getId(), actualSize, photo.getUploadStatus());
 
             photo.setUploadStatus(UploadStatus.UPLOADED);
             photoRepository.save(photo);
@@ -174,8 +199,41 @@ public class PhotoService {
 
     // Rekognition search is intentionally non-transactional to avoid holding DB connections
     // during the external AWS Rekognition network roundtrip
+    public GuestSearchResponse searchGuestPhotosWithSession(String publicId, byte[] selfieBytes, Float threshold) {
+        Event event = eventService.getEventEntityByPublicId(publicId);
+        List<SearchMatchResponse> matches = searchGuestPhotosInternal(event, selfieBytes, threshold);
+        long indexingCount = photoRepository.countByEventIdAndIndexingStatus(event.getId(), IndexingStatus.PENDING)
+                + photoRepository.countByEventIdAndIndexingStatus(event.getId(), IndexingStatus.INDEXING);
+
+        if (matches.isEmpty()) {
+            return GuestSearchResponse.builder()
+                    .sessionToken(null)
+                    .expiresAt(null)
+                    .matches(Collections.emptyList())
+                    .faceDetected(true)
+                    .indexingCount(indexingCount)
+                    .build();
+        }
+
+        Set<UUID> matchedIds = matches.stream().map(SearchMatchResponse::getPhotoId).collect(Collectors.toSet());
+        com.fotofetch.guest.session.GuestSessionService.GuestSessionResult sessionResult =
+                guestSessionService.createSession(event, matchedIds);
+
+        return GuestSearchResponse.builder()
+                .sessionToken(sessionResult.getRawToken())
+                .expiresAt(sessionResult.getExpiresAt())
+                .matches(matches)
+                .faceDetected(true)
+                .indexingCount(indexingCount)
+                .build();
+    }
+
     public List<SearchMatchResponse> searchGuestPhotos(String publicId, byte[] selfieBytes, Float threshold) {
         Event event = eventService.getEventEntityByPublicId(publicId);
+        return searchGuestPhotosInternal(event, selfieBytes, threshold);
+    }
+
+    private List<SearchMatchResponse> searchGuestPhotosInternal(Event event, byte[] selfieBytes, Float threshold) {
         String collectionId = event.getRekognitionCollectionId();
 
         List<RekognitionService.MatchResult> matches = rekognitionService.searchFacesBySelfie(
@@ -212,7 +270,7 @@ public class PhotoService {
             if (photo.getThumbnailS3Key() != null) {
                 thumbUrl = s3StorageService.generatePresignedDownloadUrl(photo.getThumbnailS3Key(), null);
             }
-            // Full original download URL is granted specifically to verified facial-recognition matches
+            // Presigned download URL for verified facial-recognition match
             String downloadUrl = s3StorageService.generatePresignedDownloadUrl(photo.getOriginalS3Key(), photo.getOriginalFilename());
 
             responseList.add(SearchMatchResponse.builder()
@@ -229,6 +287,28 @@ public class PhotoService {
         // Sort descending by similarity
         responseList.sort((a, b) -> Float.compare(b.getSimilarity(), a.getSimilarity()));
         return responseList;
+    }
+
+    @Transactional
+    public void retryPhotoProcessing(UUID photoId, User user) {
+        Photo photo = photoRepository.findById(photoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Photo not found"));
+
+        // Verify photographer ownership
+        eventService.getEventEntityByIdAndUser(photo.getEvent().getId(), user);
+
+        photo.setProcessingAttempts(0);
+        photo.setNextRetryAt(null);
+        photo.setLastProcessingError(null);
+        if (photo.getThumbnailStatus() == ThumbnailStatus.FAILED) {
+            photo.setThumbnailStatus(ThumbnailStatus.PENDING);
+        }
+        if (photo.getIndexingStatus() == IndexingStatus.FAILED) {
+            photo.setIndexingStatus(IndexingStatus.PENDING);
+        }
+        photoRepository.saveAndFlush(photo);
+
+        photoProcessingService.processPhotoAsync(photo.getId(), photo.getEvent().getRekognitionCollectionId());
     }
 
     public PhotoResponse mapToPublicPhotoResponse(Photo photo) {

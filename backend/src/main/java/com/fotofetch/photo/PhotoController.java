@@ -55,6 +55,15 @@ public class PhotoController {
         return ResponseEntity.ok(ApiResponse.success(null, "Photo deleted successfully"));
     }
 
+    @PostMapping("/{photoId}/retry")
+    public ResponseEntity<ApiResponse<Void>> retryPhoto(
+            @PathVariable UUID eventId,
+            @PathVariable UUID photoId,
+            @AuthenticationPrincipal User user) {
+        photoService.retryPhotoProcessing(photoId, user);
+        return ResponseEntity.ok(ApiResponse.success(null, "Photo retry initiated"));
+    }
+
     @PostMapping("/bulk-delete")
     public ResponseEntity<ApiResponse<Map<String, Object>>> bulkDeletePhotos(
             @PathVariable UUID eventId,
