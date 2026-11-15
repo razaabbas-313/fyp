@@ -4,20 +4,17 @@ import {
   Camera,
   Download,
   FolderArchive,
-  ArrowLeft,
   Sparkles,
   Loader2,
   AlertCircle,
-  Share2,
   CheckCircle2,
-  Users,
   CheckSquare,
   Square,
   Eye,
-  Check,
   X,
   Tag,
-  User
+  User,
+  Clock
 } from 'lucide-react';
 import { guestApi } from '../api/guestApi';
 import { Toast } from '../components/Toast';
@@ -39,7 +36,7 @@ export const GuestSearchResultsPage = () => {
   const [faceDetected, setFaceDetected] = useState(true);
   const [indexingCount, setIndexingCount] = useState(0);
 
-  // Persistent Face-to-Name Tagging (Objective 4)
+  // Persistent Face-to-Name Tagging
   const [taggedUsername, setTaggedUsername] = useState('');
   const [taggedName, setTaggedName] = useState('');
   const [tagNameInput, setTagNameInput] = useState('');
@@ -156,7 +153,7 @@ export const GuestSearchResultsPage = () => {
     if (!sessionToken || checkIsSessionExpired()) {
       setSessionExpired(true);
       setToast({
-        message: 'Your search session has expired. Please take another selfie to download photos.',
+        message: 'Your download session has expired. Please take a quick selfie to refresh.',
         type: 'error'
       });
       return;
@@ -167,7 +164,6 @@ export const GuestSearchResultsPage = () => {
       const res = await guestApi.getPhotoDownloadUrl(publicId, match.photoId, sessionToken);
       const downloadUrl = res.data?.downloadUrl || res.data;
 
-      // Create temporary anchor to trigger native download
       const link = document.createElement('a');
       link.href = downloadUrl;
       link.download = match.originalFilename || 'photo.jpg';
@@ -175,12 +171,12 @@ export const GuestSearchResultsPage = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      setToast({ message: 'Downloading original HD photo...', type: 'success' });
+      setToast({ message: 'Downloading full-quality photo...', type: 'success' });
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         setSessionExpired(true);
         setToast({
-          message: 'Download session expired or unauthorized. Please take another selfie to refresh.',
+          message: 'Download session expired. Please take a selfie to refresh.',
           type: 'error'
         });
       } else {
@@ -198,38 +194,37 @@ export const GuestSearchResultsPage = () => {
     if (!sessionToken || checkIsSessionExpired()) {
       setSessionExpired(true);
       setToast({
-        message: 'Your search session has expired. Please take another selfie to download photos.',
+        message: 'Your download session has expired. Please take a quick selfie to refresh.',
         type: 'error'
       });
       return;
     }
 
     setZipping(true);
-    setToast({ message: `Preparing your ${label} archive (${photoIdsToDownload.length} photos)...`, type: 'info' });
+    setToast({ message: `Preparing your ${label} (${photoIdsToDownload.length} photos)...`, type: 'info' });
 
     try {
       const blob = await guestApi.downloadZipBlob(publicId, photoIdsToDownload, sessionToken);
 
-      // Trigger browser download of ZIP
       const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/zip' }));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `fotofetch-${publicId}-my-photos.zip`);
+      link.setAttribute('download', `photos-${publicId}.zip`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
 
-      setToast({ message: `${label} archive downloaded successfully!`, type: 'success' });
+      setToast({ message: `Photos downloaded successfully!`, type: 'success' });
     } catch (err) {
       if (err.response?.status === 401 || err.response?.status === 403) {
         setSessionExpired(true);
         setToast({
-          message: 'Download session expired or unauthorized. Please take another selfie to refresh.',
+          message: 'Download session expired. Please take a selfie to refresh.',
           type: 'error'
         });
       } else {
-        setToast({ message: 'ZIP generation failed: ' + (err.response?.data?.message || err.message), type: 'error' });
+        setToast({ message: 'ZIP download failed: ' + (err.response?.data?.message || err.message), type: 'error' });
       }
     } finally {
       setZipping(false);
@@ -244,7 +239,7 @@ export const GuestSearchResultsPage = () => {
     if (!sessionToken || checkIsSessionExpired()) {
       setSessionExpired(true);
       setToast({
-        message: 'Your search session has expired. Please take another selfie before tagging.',
+        message: 'Your session has expired. Please take another selfie before registering your name.',
         type: 'error'
       });
       return;
@@ -263,13 +258,13 @@ export const GuestSearchResultsPage = () => {
       sessionStorage.setItem(`fotofetch_${publicId}_tagged_name`, newName);
 
       setToast({
-        message: `Success! You are now tagged as @${newUsername}. You can search your photos anytime using this username!`,
+        message: `Registered as @${newUsername}! You can now search with this name anytime.`,
         type: 'success'
       });
       setTagNameInput('');
     } catch (err) {
       setToast({
-        message: 'Tagging failed: ' + (err.response?.data?.message || err.message),
+        message: 'Could not register name: ' + (err.response?.data?.message || err.message),
         type: 'error'
       });
     } finally {
@@ -300,14 +295,14 @@ export const GuestSearchResultsPage = () => {
       />
 
       {/* Top Header */}
-      <header className="border-b border-white/5 py-4 px-6 bg-dark-950/80 backdrop-blur-md sticky top-0 z-30">
+      <header className="border-b border-white/5 py-3.5 px-4 sm:px-6 bg-dark-950/85 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <Link to={`/guest/${publicId}`} className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center">
               <Camera className="w-4 h-4 text-white" />
             </div>
             <span className="font-bold text-white text-base tracking-tight">
-              FotoFetch <span className="text-brand-400 text-xs font-mono">AI</span>
+              FotoFetch <span className="text-brand-400 text-xs font-semibold">AI</span>
             </span>
           </Link>
 
@@ -316,18 +311,18 @@ export const GuestSearchResultsPage = () => {
             className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-white/10 transition-colors"
           >
             <Camera className="w-3.5 h-3.5 text-brand-400" />
-            Take Another Selfie
+            New Search
           </Link>
         </div>
       </header>
 
       {/* Floating Selection Action Bar */}
       {selectedPhotoIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-dark-900/95 backdrop-blur-xl border border-brand-500/30 px-5 py-3 rounded-2xl shadow-2xl shadow-black/80 flex items-center gap-4 animate-slide-up">
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-dark-900/95 backdrop-blur-xl border border-brand-500/30 px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-3 sm:gap-4 animate-slide-up max-w-[94vw] sm:max-w-fit">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-brand-400 animate-pulse" />
-            <span className="text-xs font-semibold text-white">
-              {selectedPhotoIds.size} {selectedPhotoIds.size === 1 ? 'photo' : 'photos'} selected
+            <span className="w-2 h-2 rounded-full bg-brand-400" />
+            <span className="text-xs font-semibold text-white whitespace-nowrap">
+              {selectedPhotoIds.size} selected
             </span>
           </div>
 
@@ -335,33 +330,34 @@ export const GuestSearchResultsPage = () => {
 
           <button
             onClick={handleSelectAllToggle}
-            className="text-xs font-medium text-slate-300 hover:text-white transition-colors"
+            className="text-xs font-medium text-slate-300 hover:text-white transition-colors whitespace-nowrap"
           >
-            {isAllSelected ? 'Deselect All' : 'Select All'}
+            {isAllSelected ? 'Deselect' : 'Select All'}
           </button>
 
           <button
-            onClick={() => handleDownloadZip(Array.from(selectedPhotoIds), 'Selected Photos ZIP')}
+            onClick={() => handleDownloadZip(Array.from(selectedPhotoIds), 'Selected Photos')}
             disabled={zipping}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-lg shadow-brand-500/30 transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-md shadow-brand-500/20 transition-all disabled:opacity-50 whitespace-nowrap"
           >
             {zipping ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Generating ZIP...
+                Preparing ZIP...
               </>
             ) : (
               <>
                 <FolderArchive className="w-3.5 h-3.5" />
-                Download Selected as ZIP
+                Download Selected
               </>
             )}
           </button>
 
           <button
             onClick={() => setSelectedPhotoIds(new Set())}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
             title="Clear Selection"
+            aria-label="Clear selection"
           >
             <X className="w-4 h-4" />
           </button>
@@ -369,79 +365,68 @@ export const GuestSearchResultsPage = () => {
       )}
 
       {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 pb-28">
-        {/* Service Unavailable Alert (Condition 5) */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-5 pb-24">
+        {/* Service Unavailable Alert */}
         {serviceUnavailable && (
-          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-white">Service Temporarily Unavailable</p>
-                <p className="text-[11px] text-slate-300">
-                  Unable to connect to the photo recognition service. Please check your connection and try again.
-                </p>
-              </div>
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <p className="text-xs text-slate-200">
+                Connection issue. Please check your network and retry.
+              </p>
             </div>
             <button
               onClick={() => window.location.reload()}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shrink-0"
+              className="px-3 py-1 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shrink-0"
             >
               Retry
             </button>
           </div>
         )}
 
-        {/* Session Expired / Invalid Session Banner (Condition 6) */}
+        {/* Session Expired Banner */}
         {sessionExpired && (
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-white">Your Guest Search Session Has Expired</p>
-                <p className="text-[11px] text-slate-300">
-                  For privacy and download security, guest search tokens expire after 2 hours. Take a quick selfie to refresh your session.
-                </p>
-              </div>
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 text-center sm:text-left">
+              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+              <p className="text-xs text-slate-200">
+                Your download session has expired. Take a quick selfie to refresh and download photos.
+              </p>
             </div>
             <Link
               to={`/guest/${publicId}`}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 transition-colors shrink-0 shadow-lg shadow-amber-500/20"
+              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 transition-colors shrink-0"
             >
               Take Another Selfie
             </Link>
           </div>
         )}
 
-        {/* AI Indexing In Progress Banner (Condition 4) */}
+        {/* Processing Banner */}
         {indexingCount > 0 && (
-          <div className="p-4 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center gap-3">
-            <Loader2 className="w-4 h-4 text-brand-400 animate-spin shrink-0" />
+          <div className="p-3.5 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center gap-2.5">
+            <Loader2 className="w-3.5 h-3.5 text-brand-400 animate-spin shrink-0" />
             <div className="text-xs text-slate-300">
-              <span className="font-semibold text-white">AI Indexing in Progress: </span>
-              {indexingCount} photo{indexingCount > 1 ? 's are' : ' is'} currently being processed for this event. More matching photos may appear once processing finishes.
+              {indexingCount} photo{indexingCount > 1 ? 's are' : ' is'} currently being processed by the photographer. More matches may appear shortly.
             </div>
           </div>
         )}
 
         {/* Results Banner */}
-        <div className="glass-panel rounded-3xl p-6 sm:p-8 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-5 text-center sm:text-left">
+        <div className="glass-panel rounded-2xl p-5 sm:p-7 border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4 text-center sm:text-left">
             {selfieUrl && (
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-brand-500 shadow-xl shrink-0">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-brand-500 shadow-md shrink-0">
                 <img src={selfieUrl} alt="Your selfie" className="w-full h-full object-cover" />
               </div>
             )}
             <div>
-              <div className="inline-flex items-center gap-1.5 text-xs text-brand-400 font-semibold mb-1">
-                <Sparkles className="w-3.5 h-3.5" />
-                Facial Recognition Complete
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
                 {matches.length > 0 ? (
                   taggedUsername ? (
-                    <>Welcome, {taggedName || 'Guest'}! <span className="text-brand-400 font-mono text-xl font-normal">(@{taggedUsername})</span></>
+                    <>Welcome, {taggedName || 'Guest'}! <span className="text-brand-400 font-mono text-base font-normal">(@{taggedUsername})</span></>
                   ) : (
-                    <>We Found {matches.length} {matches.length === 1 ? 'Photo' : 'Photos'} of You!</>
+                    <>Found {matches.length} {matches.length === 1 ? 'Photo' : 'Photos'} of You</>
                   )
                 ) : !faceDetected ? (
                   <>No Face Detected</>
@@ -450,22 +435,22 @@ export const GuestSearchResultsPage = () => {
                 )}
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
-                {event?.name ? `Event: ${event.name}` : ''}
+                {event?.name ? event.name : ''}
               </p>
             </div>
           </div>
 
           {matches.length > 0 && (
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2.5 w-full sm:w-auto justify-center">
               <button
-                onClick={() => handleDownloadZip(matches.map((m) => m.photoId), 'All Photos ZIP')}
+                onClick={() => handleDownloadZip(matches.map((m) => m.photoId), 'All Photos')}
                 disabled={zipping}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-xl shadow-brand-500/25 transition-all hover:scale-105 disabled:opacity-50"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-md shadow-brand-500/20 transition-all disabled:opacity-50"
               >
                 {zipping ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating ZIP...
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Preparing ZIP...
                   </>
                 ) : (
                   <>
@@ -478,48 +463,43 @@ export const GuestSearchResultsPage = () => {
           )}
         </div>
 
-        {/* Face-to-Name Tagging Card (Objective 4) */}
+        {/* Face-to-Name Tagging Card */}
         {matches.length > 0 && !taggedUsername && (
-          <div className="glass-panel rounded-2xl p-5 border border-brand-500/30 bg-brand-500/[0.03] space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Tag className="w-4 h-4 text-brand-400" />
-                <span className="text-xs font-bold text-white">Tag Your Face to Your Name (Objective 4)</span>
-              </div>
-              <span className="text-[10px] text-brand-300 font-mono bg-brand-500/10 px-2 py-0.5 rounded-full border border-brand-500/20">
-                Persistent Identity
-              </span>
+          <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-white/10 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <Tag className="w-3.5 h-3.5 text-brand-400" />
+              <span className="text-xs font-bold text-white">Remember Me for Next Time</span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Want to retrieve your photos later without taking another selfie? Enter your name below to register your face. We'll assign you a unique username (e.g. <span className="font-mono text-brand-300">ali</span> or <span className="font-mono text-brand-300">ali2</span>) so you can search anytime by name.
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Want to retrieve your photos later without taking another selfie? Enter your name below to register your handle (e.g. <span className="font-mono text-brand-300">ali</span> or <span className="font-mono text-brand-300">ali2</span>).
             </p>
-            <form onSubmit={handleTagSubmit} className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+            <form onSubmit={handleTagSubmit} className="flex flex-col sm:flex-row items-center gap-2 pt-1 max-w-md">
               <div className="relative w-full sm:flex-1">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   <User className="w-3.5 h-3.5" />
                 </div>
                 <input
                   type="text"
-                  placeholder="Enter your name (e.g. Ali, Sara)"
+                  placeholder="Your name (e.g. Ali, Sara)"
                   value={tagNameInput}
                   onChange={(e) => setTagNameInput(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-dark-900 border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-white/[0.04] border border-white/10 text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
                 />
               </div>
               <button
                 type="submit"
                 disabled={taggingName || !tagNameInput.trim()}
-                className="w-full sm:w-auto px-5 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
               >
                 {taggingName ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Tagging...
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Saving...
                   </>
                 ) : (
                   <>
-                    <Tag className="w-3.5 h-3.5" />
-                    Tag My Photos
+                    <Tag className="w-3 h-3" />
+                    Save My Name
                   </>
                 )}
               </button>
@@ -527,26 +507,26 @@ export const GuestSearchResultsPage = () => {
           </div>
         )}
 
-        {/* Successfully Tagged Notification Badge */}
+        {/* Successfully Tagged Badge */}
         {taggedUsername && (
-          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
               <div className="text-xs text-slate-200">
-                You are registered as <span className="font-mono font-bold text-emerald-300">@{taggedUsername}</span> ({taggedName || 'Guest'}). You can search your photos anytime using this username!
+                Saved as <span className="font-mono font-bold text-emerald-300">@{taggedUsername}</span>. You can search by this name anytime!
               </div>
             </div>
-            <span className="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full shrink-0">
-              Identity Active
+            <span className="text-[10px] font-mono font-semibold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full shrink-0">
+              Active
             </span>
           </div>
         )}
 
         {/* Action / Selection Header */}
         {matches.length > 0 && (
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pt-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-white">Your Matched Photos</span>
+              <span className="text-xs sm:text-sm font-semibold text-white">Matched Photos</span>
               <span className="text-xs text-slate-400">({matches.length})</span>
             </div>
 
@@ -557,7 +537,7 @@ export const GuestSearchResultsPage = () => {
               {isAllSelected ? (
                 <>
                   <CheckSquare className="w-3.5 h-3.5 text-brand-400" />
-                  Deselect All
+                  Deselect
                 </>
               ) : (
                 <>
@@ -573,54 +553,44 @@ export const GuestSearchResultsPage = () => {
         {matches.length === 0 ? (
           /* Empty State */
           !faceDetected ? (
-            /* Condition 1: No Face Detected */
-            <div className="glass-panel rounded-3xl p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-12">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-                <AlertCircle className="w-8 h-8" />
+            /* No Face Detected */
+            <div className="glass-panel rounded-2xl p-8 sm:p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-6">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                <AlertCircle className="w-7 h-7" />
               </div>
-              <h3 className="text-lg font-bold text-white">No Face Detected in Selfie</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white">No Face Detected</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Our AI could not find a clear human face in your selfie. To ensure accurate matching:
+                Could not find a clear face in your selfie. Try again in good lighting looking directly at the camera.
               </p>
-              <ul className="text-xs text-slate-300 text-left list-disc list-inside space-y-1 bg-white/[0.02] p-4 rounded-xl border border-white/5">
-                <li>Look directly into the camera in a well-lit area</li>
-                <li>Avoid dark backlighting or heavy shadows</li>
-                <li>Remove sunglasses, face masks, or heavy coverings</li>
-              </ul>
               <div className="pt-2">
                 <Link
                   to={`/guest/${publicId}`}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/25"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-md shadow-brand-500/20"
                 >
                   <Camera className="w-4 h-4" />
-                  Snap a Clear Selfie
+                  Take Another Selfie
                 </Link>
               </div>
             </div>
           ) : (
-            /* Condition 2: Face Detected, but no matches */
-            <div className="glass-panel rounded-3xl p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-12">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                <AlertCircle className="w-8 h-8" />
+            /* Face Detected, but no matches */
+            <div className="glass-panel rounded-2xl p-8 sm:p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-6">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                <AlertCircle className="w-7 h-7" />
               </div>
-              <h3 className="text-lg font-bold text-white">No Matches Found in This Event</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white">No Matches Found</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                We detected your face, but couldn't find matching photos with high confidence. Try snapping another selfie with:
+                We couldn't find matching photos in this event yet. Try taking another selfie with front lighting.
               </p>
-              <ul className="text-xs text-slate-300 text-left list-disc list-inside space-y-1 bg-white/[0.02] p-4 rounded-xl border border-white/5">
-                <li>Better front-facing lighting</li>
-                <li>Neutral expression or natural smile</li>
-                <li>Removing sunglasses or tinted eyewear</li>
-              </ul>
               {indexingCount > 0 && (
                 <p className="text-[11px] text-brand-300 bg-brand-500/10 p-2.5 rounded-xl border border-brand-500/20">
-                  💡 Note: {indexingCount} photo{indexingCount > 1 ? 's are' : ' is'} still being processed by the photographer. Check back soon!
+                  {indexingCount} photo{indexingCount > 1 ? 's are' : ' is'} still being processed. Check back soon!
                 </p>
               )}
               <div className="pt-2">
                 <Link
                   to={`/guest/${publicId}`}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/25"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-md shadow-brand-500/20"
                 >
                   <Camera className="w-4 h-4" />
                   Try Another Selfie
@@ -629,8 +599,8 @@ export const GuestSearchResultsPage = () => {
             </div>
           )
         ) : (
-          /* Photo Grid */
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          /* Responsive Photo Grid */
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {matches.map((match, index) => {
               const isSelected = selectedPhotoIds.has(match.photoId);
 
@@ -638,7 +608,7 @@ export const GuestSearchResultsPage = () => {
                 <div
                   key={match.photoId}
                   onClick={() => handleOpenLightbox(index)}
-                  className={`glass-card rounded-2xl overflow-hidden border group flex flex-col justify-between relative transition-all duration-200 cursor-pointer ${
+                  className={`glass-card rounded-xl overflow-hidden border group flex flex-col justify-between relative transition-all duration-200 cursor-pointer ${
                     isSelected
                       ? 'border-brand-500 ring-2 ring-brand-500/70 bg-brand-500/[0.04]'
                       : 'border-white/10 hover:border-white/20'
@@ -648,19 +618,20 @@ export const GuestSearchResultsPage = () => {
                   <button
                     type="button"
                     onClick={(e) => handleToggleSelect(match.photoId, e)}
+                    aria-label={isSelected ? 'Deselect photo' : 'Select photo'}
                     className={`absolute top-2 right-2 p-1.5 rounded-lg z-20 transition-all ${
                       isSelected
-                        ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/40 ring-2 ring-white/30 opacity-100'
+                        ? 'bg-brand-600 text-white shadow-md shadow-brand-500/40 ring-2 ring-white/30 opacity-100'
                         : selectedPhotoIds.size > 0
                         ? 'bg-black/60 text-slate-300 opacity-90 backdrop-blur-md'
                         : 'bg-black/60 text-slate-300 hover:text-white opacity-0 group-hover:opacity-100 backdrop-blur-md'
                     }`}
-                    title={isSelected ? 'Deselect photo' : 'Select photo for ZIP download'}
+                    title={isSelected ? 'Deselect photo' : 'Select photo'}
                   >
                     {isSelected ? (
-                      <CheckSquare className="w-4 h-4 text-white" />
+                      <CheckSquare className="w-3.5 h-3.5 text-white" />
                     ) : (
-                      <Square className="w-4 h-4" />
+                      <Square className="w-3.5 h-3.5" />
                     )}
                   </button>
 
@@ -674,9 +645,9 @@ export const GuestSearchResultsPage = () => {
 
                     {/* Similarity Badge */}
                     {match.similarity && (
-                      <div className="absolute top-2 left-2 px-2.5 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-emerald-500/30 text-[10px] font-bold text-emerald-400 z-10 flex items-center gap-1">
+                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-emerald-500/30 text-[10px] font-semibold text-emerald-400 z-10 flex items-center gap-1">
                         <Sparkles className="w-3 h-3 text-emerald-400" />
-                        {Math.round(match.similarity)}% Match
+                        {Math.round(match.similarity)}%
                       </div>
                     )}
 
@@ -689,15 +660,16 @@ export const GuestSearchResultsPage = () => {
                     </div>
                   </div>
 
-                  <div className="p-3 bg-dark-900/80 border-t border-white/5 flex items-center justify-between gap-2">
+                  <div className="p-2.5 bg-dark-900/80 border-t border-white/5 flex items-center justify-between gap-2">
                     <div className="truncate text-[11px] text-slate-300 font-medium" title={match.originalFilename}>
                       {match.originalFilename}
                     </div>
                     <button
                       onClick={(e) => handleDownloadSingle(match, e)}
                       disabled={downloadingPhotoId === match.photoId}
+                      aria-label="Download photo"
                       className="p-1.5 rounded-lg bg-white/5 hover:bg-brand-600 text-slate-300 hover:text-white transition-colors shrink-0"
-                      title="Download HD Original"
+                      title="Download HD"
                     >
                       {downloadingPhotoId === match.photoId ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -715,3 +687,4 @@ export const GuestSearchResultsPage = () => {
     </div>
   );
 };
+

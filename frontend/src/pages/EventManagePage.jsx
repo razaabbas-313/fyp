@@ -3,11 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import {
   UploadCloud,
   QrCode,
-  Share2,
   Calendar,
-  Layers,
   ArrowLeft,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   Download,
@@ -110,7 +107,7 @@ export const EventManagePage = () => {
     const url = `${window.location.origin}/guest/${event.publicId}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
-    setToast({ message: 'Public guest link copied to clipboard!', type: 'success' });
+    setToast({ message: 'Guest link copied!', type: 'success' });
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -180,7 +177,6 @@ export const EventManagePage = () => {
           return next;
         });
 
-        // If lightbox was open, adjust index
         if (lightboxOpen) {
           if (photos.length <= 1) {
             setLightboxOpen(false);
@@ -190,7 +186,7 @@ export const EventManagePage = () => {
         }
 
         setToast({
-          message: `Photo "${photoToDelete.originalFilename}" deleted successfully`,
+          message: `Photo deleted successfully`,
           type: 'success',
         });
       } else if (deleteModal.type === 'bulk') {
@@ -205,7 +201,7 @@ export const EventManagePage = () => {
         }
 
         setToast({
-          message: `${idsToDelete.length} photos deleted successfully`,
+          message: `${idsToDelete.length} photos deleted`,
           type: 'success',
         });
       }
@@ -222,9 +218,9 @@ export const EventManagePage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-slate-400 gap-3">
+      <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center text-slate-400 gap-2.5">
         <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
-        <p className="text-sm">Loading event gallery...</p>
+        <p className="text-xs sm:text-sm">Loading event gallery...</p>
       </div>
     );
   }
@@ -232,8 +228,8 @@ export const EventManagePage = () => {
   if (!event) {
     return (
       <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center p-4">
-        <p className="text-lg text-white mb-4">Event not found or unauthorized</p>
-        <Link to="/dashboard" className="text-brand-400 text-sm hover:underline">
+        <p className="text-base text-white mb-3">Event not found or unauthorized</p>
+        <Link to="/dashboard" className="text-brand-400 text-xs sm:text-sm hover:underline">
           Return to Dashboard
         </Link>
       </div>
@@ -283,13 +279,13 @@ export const EventManagePage = () => {
       {/* Deletion Confirmation Modal */}
       {deleteModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="glass-panel border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
+          <div className="glass-panel border border-white/10 rounded-2xl p-5 sm:p-6 max-w-sm w-full shadow-2xl space-y-4 animate-scale-up">
             <div className="flex items-center gap-3 text-rose-400">
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                <AlertTriangle className="w-6 h-6 text-rose-400" />
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <AlertTriangle className="w-5 h-5 text-rose-400" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">
+                <h3 className="text-sm sm:text-base font-bold text-white">
                   {deleteModal.type === 'bulk' ? `Delete ${deleteModal.count} Photos?` : 'Delete Photo?'}
                 </h3>
                 <p className="text-xs text-slate-400">This action cannot be undone.</p>
@@ -298,32 +294,24 @@ export const EventManagePage = () => {
 
             <p className="text-xs text-slate-300 leading-relaxed">
               {deleteModal.type === 'bulk' ? (
-                <>
-                  Are you sure you want to permanently delete{' '}
-                  <strong className="text-white">{deleteModal.count} selected photos</strong>? This
-                  will remove original files, thumbnails, and facial recognition data.
-                </>
+                <>Permanently delete {deleteModal.count} selected photos from this event?</>
               ) : (
-                <>
-                  Are you sure you want to permanently delete{' '}
-                  <strong className="text-white font-mono">{deleteModal.photo?.originalFilename}</strong>?
-                  This will remove the original image, thumbnail, and facial recognition data.
-                </>
+                <>Permanently delete <strong className="text-white">{deleteModal.photo?.originalFilename}</strong> from this event?</>
               )}
             </p>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 disabled={isDeleting}
                 onClick={() => setDeleteModal({ isOpen: false, type: 'single', photo: null, count: 0 })}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 disabled={isDeleting}
                 onClick={executeDelete}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-lg shadow-rose-600/30 disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-md shadow-rose-600/30 disabled:opacity-50"
               >
                 {isDeleting ? (
                   <>
@@ -333,7 +321,7 @@ export const EventManagePage = () => {
                 ) : (
                   <>
                     <Trash2 className="w-3.5 h-3.5" />
-                    {deleteModal.type === 'bulk' ? `Delete ${deleteModal.count} Photos` : 'Delete Photo'}
+                    Delete
                   </>
                 )}
               </button>
@@ -344,11 +332,11 @@ export const EventManagePage = () => {
 
       {/* Floating Selection Action Bar */}
       {selectedPhotoIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-dark-900/95 backdrop-blur-xl border border-brand-500/30 px-5 py-3 rounded-2xl shadow-2xl shadow-black/80 flex items-center gap-4 animate-slide-up">
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 bg-dark-900/95 backdrop-blur-xl border border-brand-500/30 px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-3 sm:gap-4 animate-slide-up max-w-[94vw] sm:max-w-fit">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-brand-400 animate-pulse" />
-            <span className="text-xs font-semibold text-white">
-              {selectedPhotoIds.size} {selectedPhotoIds.size === 1 ? 'photo' : 'photos'} selected
+            <span className="w-2 h-2 rounded-full bg-brand-400" />
+            <span className="text-xs font-semibold text-white whitespace-nowrap">
+              {selectedPhotoIds.size} selected
             </span>
           </div>
 
@@ -356,87 +344,85 @@ export const EventManagePage = () => {
 
           <button
             onClick={handleSelectAllToggle}
-            className="text-xs font-medium text-slate-300 hover:text-white transition-colors"
+            className="text-xs font-medium text-slate-300 hover:text-white transition-colors whitespace-nowrap"
           >
-            {isAllSelected ? 'Deselect All' : 'Select All'}
+            {isAllSelected ? 'Deselect' : 'Select All'}
           </button>
 
           <button
             onClick={promptDeleteBulk}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-lg shadow-rose-600/30"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-md shadow-rose-600/30 whitespace-nowrap"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            Delete Selected
+            Delete
           </button>
 
           <button
             onClick={() => setSelectedPhotoIds(new Set())}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
             title="Clear Selection"
+            aria-label="Clear selection"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-24">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28 pb-20">
         {/* Back button */}
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors mb-6"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors mb-5"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
         </Link>
 
         {/* Event Header Banner */}
-        <div className="glass-panel rounded-3xl p-6 sm:p-8 border border-white/10 space-y-6">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-2 max-w-2xl">
-              <div className="flex items-center gap-3">
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-300 font-mono">
-                  ID: {event.publicId}
-                </span>
-                <span className="text-xs text-slate-400 flex items-center gap-1.5">
+        <div className="glass-panel rounded-2xl p-5 sm:p-7 border border-white/10 space-y-5">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+            <div className="space-y-1.5 max-w-2xl">
+              <div className="flex items-center gap-2.5">
+                <span className="text-[11px] text-slate-400 flex items-center gap-1.5 font-medium">
                   <Calendar className="w-3.5 h-3.5 text-brand-400" />
                   {event.eventDate}
                 </span>
               </div>
-              <h1 className="text-3xl font-extrabold text-white tracking-tight">{event.name}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{event.name}</h1>
               {event.description && (
-                <p className="text-sm text-slate-400 leading-relaxed">{event.description}</p>
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">{event.description}</p>
               )}
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               <button
                 onClick={() => setQrModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
               >
-                <QrCode className="w-4 h-4 text-brand-400" />
+                <QrCode className="w-3.5 h-3.5 text-brand-400" />
                 QR Code
               </button>
 
               <button
                 onClick={handleCopyPublicLink}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                Copy Guest Link
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                Copy Link
               </button>
 
               <a
                 href={`/guest/${event.publicId}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
               >
-                Guest View <ExternalLink className="w-3.5 h-3.5" />
+                Guest View <ExternalLink className="w-3 h-3" />
               </a>
 
               <button
                 onClick={() => setUploadModalOpen(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-lg shadow-brand-500/25 transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-md shadow-brand-500/20 transition-all"
               >
                 <UploadCloud className="w-4 h-4" />
                 Upload Photos
@@ -445,35 +431,35 @@ export const EventManagePage = () => {
           </div>
 
           {/* Stats Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-6 border-t border-white/5">
-            <div className="bg-white/[0.02] p-4 rounded-xl border border-white/5">
-              <span className="text-[11px] uppercase tracking-wider text-slate-400">Total Uploaded</span>
-              <p className="text-xl font-bold text-white mt-1">{photos.length}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/5">
+            <div className="bg-white/[0.02] p-3.5 rounded-xl border border-white/5">
+              <span className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Total Photos</span>
+              <p className="text-lg sm:text-xl font-bold text-white mt-0.5">{photos.length}</p>
             </div>
-            <div className="bg-emerald-500/[0.04] p-4 rounded-xl border border-emerald-500/10">
-              <span className="text-[11px] uppercase tracking-wider text-emerald-400">AI Indexed</span>
-              <p className="text-xl font-bold text-emerald-400 mt-1">{indexedCount}</p>
+            <div className="bg-emerald-500/[0.04] p-3.5 rounded-xl border border-emerald-500/10">
+              <span className="text-[10px] uppercase tracking-wider text-emerald-400 font-medium">Ready</span>
+              <p className="text-lg sm:text-xl font-bold text-emerald-400 mt-0.5">{indexedCount}</p>
             </div>
-            <div className="bg-amber-500/[0.04] p-4 rounded-xl border border-amber-500/10">
-              <span className="text-[11px] uppercase tracking-wider text-amber-400">Processing</span>
-              <p className="text-xl font-bold text-amber-400 mt-1">{pendingCount}</p>
+            <div className="bg-amber-500/[0.04] p-3.5 rounded-xl border border-amber-500/10">
+              <span className="text-[10px] uppercase tracking-wider text-amber-400 font-medium">Processing</span>
+              <p className="text-lg sm:text-xl font-bold text-amber-400 mt-0.5">{pendingCount}</p>
             </div>
-            <div className="bg-rose-500/[0.04] p-4 rounded-xl border border-rose-500/10">
-              <span className="text-[11px] uppercase tracking-wider text-rose-400">Failed</span>
-              <p className="text-xl font-bold text-rose-400 mt-1">{failedCount}</p>
+            <div className="bg-rose-500/[0.04] p-3.5 rounded-xl border border-rose-500/10">
+              <span className="text-[10px] uppercase tracking-wider text-rose-400 font-medium">Failed</span>
+              <p className="text-lg sm:text-xl font-bold text-rose-400 mt-0.5">{failedCount}</p>
             </div>
           </div>
         </div>
 
         {/* Gallery Section */}
-        <div className="mt-10 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-white tracking-tight">Event Gallery</h2>
-              <span className="text-xs text-slate-400">({photos.length} photos)</span>
+        <div className="mt-8 space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Event Photos</h2>
+              <span className="text-xs text-slate-400">({photos.length})</span>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               {photos.length > 0 && (
                 <button
                   onClick={handleSelectAllToggle}
@@ -482,7 +468,7 @@ export const EventManagePage = () => {
                   {isAllSelected ? (
                     <>
                       <CheckSquare className="w-3.5 h-3.5 text-brand-400" />
-                      Deselect All
+                      Deselect
                     </>
                   ) : (
                     <>
@@ -504,25 +490,27 @@ export const EventManagePage = () => {
 
           {photos.length === 0 ? (
             /* Empty gallery */
-            <div className="glass-panel rounded-3xl p-12 text-center border border-white/10 space-y-4 max-w-lg mx-auto">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
-                <UploadCloud className="w-8 h-8" />
+            <div className="glass-panel rounded-2xl p-8 sm:p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-6">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
+                <UploadCloud className="w-7 h-7" />
               </div>
-              <h3 className="text-lg font-bold text-white">No Photos Uploaded Yet</h3>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
-                Upload your high-resolution event photographs. FotoFetch will generate lightweight thumbnails and index all faces with AWS Rekognition.
-              </p>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-white">No Photos Uploaded</h3>
+                <p className="text-xs text-slate-400 leading-relaxed mt-1 max-w-xs mx-auto">
+                  Upload event photos to enable facial recognition search for your guests.
+                </p>
+              </div>
               <button
                 onClick={() => setUploadModalOpen(true)}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/25"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-md shadow-brand-500/20"
               >
                 <UploadCloud className="w-4 h-4" />
                 Upload Photos Now
               </button>
             </div>
           ) : (
-            /* Photos Grid */
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            /* Responsive Photos Grid */
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
               {photos.map((photo, index) => {
                 const isSelected = selectedPhotoIds.has(photo.id);
 
@@ -540,9 +528,10 @@ export const EventManagePage = () => {
                     <button
                       type="button"
                       onClick={(e) => handleToggleSelect(photo.id, e)}
+                      aria-label={isSelected ? 'Deselect photo' : 'Select photo'}
                       className={`absolute top-2 right-2 p-1.5 rounded-lg z-20 transition-all ${
                         isSelected
-                          ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/40 ring-2 ring-white/30 opacity-100'
+                          ? 'bg-brand-600 text-white shadow-md shadow-brand-500/40 ring-2 ring-white/30 opacity-100'
                           : selectedPhotoIds.size > 0
                           ? 'bg-black/60 text-slate-300 opacity-90 backdrop-blur-md'
                           : 'bg-black/60 text-slate-300 hover:text-white opacity-0 group-hover:opacity-100 backdrop-blur-md'
@@ -550,9 +539,9 @@ export const EventManagePage = () => {
                       title={isSelected ? 'Deselect photo' : 'Select photo'}
                     >
                       {isSelected ? (
-                        <CheckSquare className="w-4 h-4 text-white" />
+                        <CheckSquare className="w-3.5 h-3.5 text-white" />
                       ) : (
-                        <Square className="w-4 h-4" />
+                        <Square className="w-3.5 h-3.5" />
                       )}
                     </button>
 
@@ -567,12 +556,12 @@ export const EventManagePage = () => {
                       ) : photo.thumbnailStatus === 'FAILED' ? (
                         <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-xs p-2 text-center bg-white/[0.02]">
                           <AlertCircle className="w-5 h-5 mb-1 text-rose-400" />
-                          <span className="text-[10px] text-slate-400">Thumbnail failed</span>
+                          <span className="text-[10px] text-slate-400">Failed</span>
                         </div>
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-xs p-2 text-center">
                           <Loader2 className="w-5 h-5 animate-spin mb-1 text-brand-400" />
-                          <span className="text-[10px] text-slate-400">Generating thumbnail...</span>
+                          <span className="text-[10px] text-slate-400">Processing...</span>
                         </div>
                       )}
 
@@ -588,13 +577,12 @@ export const EventManagePage = () => {
                       {photo.facesFound > 0 && (
                         <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-[10px] font-medium text-emerald-300 flex items-center gap-1 z-10">
                           <Users className="w-3 h-3 text-emerald-400" />
-                          {photo.facesFound} {photo.facesFound === 1 ? 'face' : 'faces'}
+                          {photo.facesFound}
                         </div>
                       )}
 
                       {/* Action buttons on Hover */}
                       <div className="absolute bottom-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                        {/* Download Original */}
                         {photo.downloadUrl && (
                           <a
                             href={photo.downloadUrl}
@@ -603,25 +591,25 @@ export const EventManagePage = () => {
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
                             className="p-1.5 rounded-lg bg-black/75 hover:bg-black text-white backdrop-blur-md transition-colors"
-                            title="Download HD Original"
+                            title="Download HD"
                           >
                             <Download className="w-3.5 h-3.5" />
                           </a>
                         )}
 
-                        {/* Delete Single Photo */}
                         <button
                           type="button"
                           onClick={(e) => promptDeleteSingle(photo, e)}
                           className="p-1.5 rounded-lg bg-black/75 hover:bg-rose-600 text-slate-300 hover:text-white backdrop-blur-md transition-colors"
                           title="Delete Photo"
+                          aria-label="Delete photo"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="p-2.5 bg-dark-900/80 border-t border-white/5 space-y-1">
+                    <div className="p-2 bg-dark-900/80 border-t border-white/5 space-y-0.5">
                       <p className="text-[11px] font-medium text-slate-300 truncate" title={photo.originalFilename}>
                         {photo.originalFilename}
                       </p>
@@ -631,14 +619,12 @@ export const EventManagePage = () => {
                           photo.indexingStatus === 'COMPLETED' ? 'text-emerald-400' :
                           photo.indexingStatus === 'INDEXING' ? 'text-amber-400' :
                           photo.indexingStatus === 'NO_FACES_DETECTED' ? 'text-slate-400' :
-                          photo.indexingStatus === 'FAILED' ? 'text-rose-400' :
-                          photo.uploadStatus === 'PENDING' ? 'text-slate-500' : 'text-indigo-400'
+                          photo.indexingStatus === 'FAILED' ? 'text-rose-400' : 'text-indigo-400'
                         }`}>
-                          {photo.indexingStatus === 'COMPLETED' ? 'Indexed' :
-                           photo.indexingStatus === 'INDEXING' ? 'Indexing...' :
+                          {photo.indexingStatus === 'COMPLETED' ? 'Ready' :
+                           photo.indexingStatus === 'INDEXING' ? 'Processing' :
                            photo.indexingStatus === 'NO_FACES_DETECTED' ? 'No faces' :
-                           photo.indexingStatus === 'FAILED' ? 'Failed' :
-                           photo.uploadStatus === 'PENDING' ? 'Pending' : 'Uploaded'}
+                           photo.indexingStatus === 'FAILED' ? 'Failed' : 'Uploaded'}
                         </span>
                       </div>
                     </div>
@@ -652,3 +638,4 @@ export const EventManagePage = () => {
     </div>
   );
 };
+

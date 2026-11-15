@@ -7,10 +7,8 @@ import {
   Layers,
   ArrowRight,
   Loader2,
-  Share2,
   Trash2,
-  ExternalLink,
-  Sparkles,
+  CheckCircle2,
   QrCode
 } from 'lucide-react';
 import { eventApi } from '../api/eventApi';
@@ -69,7 +67,6 @@ export const DashboardPage = () => {
       setCreateModalOpen(false);
       setName('');
       setDescription('');
-      // Navigate to event management page
       navigate(`/events/${res.data.id}`);
     } catch (err) {
       setToast({ message: 'Failed to create event: ' + err.message, type: 'error' });
@@ -80,7 +77,7 @@ export const DashboardPage = () => {
 
   const handleDeleteEvent = async (id, e) => {
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this event and its Rekognition collection?')) {
+    if (!window.confirm('Are you sure you want to delete this event and all associated photos?')) {
       return;
     }
     try {
@@ -116,55 +113,55 @@ export const DashboardPage = () => {
       <Modal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
-        title="Create New Event Gallery"
+        title="Create New Event"
       >
         <form onSubmit={handleCreateEvent} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">Event Name</label>
+            <label className="text-xs font-medium text-slate-300">Event Name</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sarah & Michael's Wedding 2026"
-              className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
+              placeholder="e.g. Annual Gala 2026"
+              className="w-full px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">Event Date</label>
+            <label className="text-xs font-medium text-slate-300">Event Date</label>
             <input
               type="date"
               required
               value={eventDate}
               onChange={(e) => setEventDate(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-brand-500 transition-colors"
+              className="w-full px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-sm text-white focus:outline-none focus:border-brand-500 transition-colors"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">Description (Optional)</label>
+            <label className="text-xs font-medium text-slate-300">Description (Optional)</label>
             <textarea
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Brief welcome message or details for guests..."
-              className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors resize-none"
+              className="w-full px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors resize-none"
             />
           </div>
 
-          <div className="pt-3 border-t border-white/10 flex justify-end gap-3">
+          <div className="pt-3 border-t border-white/10 flex justify-end gap-2.5">
             <button
               type="button"
               onClick={() => setCreateModalOpen(false)}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white"
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={creating}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-lg shadow-brand-500/25 transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-md shadow-brand-500/20 transition-all disabled:opacity-50"
             >
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Create Event
@@ -174,16 +171,16 @@ export const DashboardPage = () => {
       </Modal>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28 pb-16">
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-8 border-b border-white/5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/5">
           <div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">Photographer Studio</h1>
-            <p className="text-sm text-slate-400 mt-1">Manage events, upload photos, and monitor facial indexing</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Photographer Studio</h1>
+            <p className="text-xs sm:text-sm text-slate-400 mt-0.5">Manage events, upload photos, and share guest access</p>
           </div>
           <button
             onClick={() => setCreateModalOpen(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-lg shadow-brand-500/25 hover:scale-[1.02] active:scale-[0.98] transition-all self-start sm:self-auto"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-md shadow-brand-500/20 transition-all self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             Create Event
@@ -191,65 +188,67 @@ export const DashboardPage = () => {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 my-8">
-          <div className="glass-panel p-6 rounded-2xl border border-white/10 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
-              <Layers className="w-6 h-6" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 my-6 sm:my-8">
+          <div className="glass-panel p-5 sm:p-6 rounded-2xl border border-white/10 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 shrink-0">
+              <Layers className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Events</p>
-              <h3 className="text-2xl font-bold text-white mt-0.5">{stats.totalEvents}</h3>
+              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Total Events</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-white mt-0.5">{stats.totalEvents}</h3>
             </div>
           </div>
 
-          <div className="glass-panel p-6 rounded-2xl border border-white/10 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-              <ImageIcon className="w-6 h-6" />
+          <div className="glass-panel p-5 sm:p-6 rounded-2xl border border-white/10 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
+              <ImageIcon className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Photographs</p>
-              <h3 className="text-2xl font-bold text-white mt-0.5">{stats.totalPhotos}</h3>
+              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Total Photos</p>
+              <h3 className="text-xl sm:text-2xl font-bold text-white mt-0.5">{stats.totalPhotos}</h3>
             </div>
           </div>
 
-          <div className="glass-panel p-6 rounded-2xl border border-white/10 flex items-center gap-4 sm:col-span-2 lg:col-span-1">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <Sparkles className="w-6 h-6" />
+          <div className="glass-panel p-5 sm:p-6 rounded-2xl border border-white/10 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">AWS Rekognition</p>
-              <h3 className="text-sm font-semibold text-emerald-400 mt-0.5 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Active & Ready
+              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Face Matching</p>
+              <h3 className="text-sm font-semibold text-emerald-400 mt-1 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" /> Active & Ready
               </h3>
             </div>
           </div>
         </div>
 
         {/* Events List Section */}
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white tracking-tight">Your Events</h2>
-            <span className="text-xs text-slate-400">{events.length} event(s) registered</span>
+            <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">Your Events</h2>
+            <span className="text-xs text-slate-400">{events.length} event{events.length === 1 ? '' : 's'}</span>
           </div>
 
           {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-3 text-slate-400">
+            <div className="py-20 flex flex-col items-center justify-center gap-2.5 text-slate-400">
               <Loader2 className="w-7 h-7 animate-spin text-brand-500" />
-              <p className="text-sm">Loading your galleries...</p>
+              <p className="text-xs sm:text-sm">Loading your events...</p>
             </div>
           ) : events.length === 0 ? (
             /* Empty State */
-            <div className="glass-panel rounded-3xl p-12 text-center border border-white/10 space-y-4 max-w-xl mx-auto my-12">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
-                <Layers className="w-8 h-8" />
+            <div className="glass-panel rounded-2xl p-8 sm:p-12 text-center border border-white/10 space-y-4 max-w-md mx-auto my-8">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
+                <Layers className="w-7 h-7" />
               </div>
-              <h3 className="text-lg font-bold text-white">No Events Created Yet</h3>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
-                Create your first event gallery, upload event photos, and get an instant guest QR code with facial recognition.
-              </p>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-white">No Events Yet</h3>
+                <p className="text-xs text-slate-400 leading-relaxed mt-1 max-w-xs mx-auto">
+                  Create your first event gallery to upload photos and share instant QR codes with guests.
+                </p>
+              </div>
               <button
                 onClick={() => setCreateModalOpen(true)}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-lg shadow-brand-500/25"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 transition-colors shadow-md shadow-brand-500/20"
               >
                 <Plus className="w-4 h-4" />
                 Create First Event
@@ -257,22 +256,23 @@ export const DashboardPage = () => {
             </div>
           ) : (
             /* Events Grid */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {events.map((event) => (
                 <div
                   key={event.id}
                   onClick={() => navigate(`/events/${event.id}`)}
-                  className="glass-card rounded-2xl p-6 border border-white/10 cursor-pointer flex flex-col justify-between group space-y-4"
+                  className="glass-card rounded-2xl p-5 sm:p-6 border border-white/10 cursor-pointer flex flex-col justify-between group space-y-4"
                 >
-                  <div className="space-y-3">
+                  <div className="space-y-2.5">
                     <div className="flex items-start justify-between gap-3">
-                      <h3 className="text-lg font-bold text-white group-hover:text-brand-300 transition-colors line-clamp-1">
+                      <h3 className="text-base sm:text-lg font-bold text-white group-hover:text-brand-300 transition-colors line-clamp-1">
                         {event.name}
                       </h3>
                       <button
                         onClick={(e) => handleDeleteEvent(event.id, e)}
                         title="Delete event"
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-white/5 transition-colors"
+                        aria-label="Delete event"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-white/5 transition-colors shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -309,7 +309,7 @@ export const DashboardPage = () => {
                       QR Code
                     </button>
 
-                    <div className="flex items-center gap-1 text-brand-400 font-semibold group-hover:translate-x-1 transition-transform">
+                    <div className="flex items-center gap-1 text-brand-400 font-semibold group-hover:translate-x-0.5 transition-transform">
                       Manage <ArrowRight className="w-3.5 h-3.5" />
                     </div>
                   </div>
@@ -322,3 +322,4 @@ export const DashboardPage = () => {
     </div>
   );
 };
+

@@ -127,27 +127,27 @@ export const ImageGalleryLightbox = ({
       onTouchEnd={handleTouchEnd}
     >
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="px-3 py-1 rounded-full bg-white/10 text-xs font-mono font-medium text-slate-200">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-20">
+        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+          <span className="px-2.5 py-1 rounded-full bg-white/10 text-[11px] font-mono font-medium text-slate-200 shrink-0">
             {currentIndex + 1} / {photos.length}
           </span>
-          <div className="truncate max-w-[180px] sm:max-w-md">
-            <p className="text-sm font-semibold text-white truncate" title={currentPhoto.originalFilename}>
+          <div className="truncate max-w-[130px] sm:max-w-md">
+            <p className="text-xs sm:text-sm font-semibold text-white truncate" title={currentPhoto.originalFilename}>
               {currentPhoto.originalFilename}
             </p>
-            <div className="flex items-center gap-2 text-[11px] text-slate-400">
+            <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-400">
               {currentPhoto.fileSize && (
-                <span>{(currentPhoto.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                <span>{(currentPhoto.fileSize / (1024 * 1024)).toFixed(1)} MB</span>
               )}
               {currentPhoto.facesFound > 0 && (
                 <span className="flex items-center gap-1 text-emerald-400">
                   <Users className="w-3 h-3" />
-                  {currentPhoto.facesFound} {currentPhoto.facesFound === 1 ? 'face' : 'faces'}
+                  {currentPhoto.facesFound}
                 </span>
               )}
               {currentPhoto.similarity != null && (
-                <span className="flex items-center gap-1 text-brand-300 bg-brand-500/20 px-1.5 py-0.5 rounded font-mono font-semibold">
+                <span className="flex items-center gap-1 text-brand-300 font-mono font-medium">
                   <Sparkles className="w-3 h-3 text-brand-400" />
                   {Math.round(currentPhoto.similarity)}% Match
                 </span>
@@ -157,25 +157,26 @@ export const ImageGalleryLightbox = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {currentPhoto.downloadUrl && (
             <a
               href={currentPhoto.downloadUrl}
               download={currentPhoto.originalFilename}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-white bg-white/10 hover:bg-white/20 transition-colors"
-              title="Download HD Original"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-white/10 hover:bg-white/20 transition-colors"
+              title="Download HD"
             >
-              <Download className="w-4 h-4 text-brand-400" />
-              <span className="hidden sm:inline">Download HD</span>
+              <Download className="w-3.5 h-3.5 text-brand-400" />
+              <span className="hidden sm:inline">Download</span>
             </a>
           )}
 
           {onDelete && (
             <button
               onClick={() => setDeleteConfirmOpen(true)}
-              className="p-2 rounded-xl text-slate-300 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-colors"
+              aria-label="Delete photo"
+              className="p-1.5 sm:p-2 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
               title="Delete Photo"
             >
               <Trash2 className="w-4 h-4" />
@@ -184,7 +185,8 @@ export const ImageGalleryLightbox = ({
 
           <button
             onClick={toggleFullscreen}
-            className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors hidden sm:block"
+            aria-label="Toggle fullscreen"
+            className="p-1.5 sm:p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors hidden sm:block"
             title="Toggle Fullscreen"
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -192,8 +194,9 @@ export const ImageGalleryLightbox = ({
 
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-            title="Close Preview (Esc)"
+            aria-label="Close preview"
+            className="p-1.5 sm:p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+            title="Close (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
@@ -206,10 +209,11 @@ export const ImageGalleryLightbox = ({
         {hasPrev && (
           <button
             onClick={() => onNavigate(currentIndex - 1)}
-            className="absolute left-3 sm:left-6 z-20 p-3 sm:p-4 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white border border-white/10 backdrop-blur-md transition-all hover:scale-110 shadow-xl"
-            title="Previous Photo (Left Arrow)"
+            aria-label="Previous photo"
+            className="absolute left-2 sm:left-6 z-20 p-2.5 sm:p-3.5 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white border border-white/10 backdrop-blur-md transition-all shadow-xl"
+            title="Previous (Left Arrow)"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         )}
 
@@ -217,10 +221,11 @@ export const ImageGalleryLightbox = ({
         {hasNext && (
           <button
             onClick={() => onNavigate(currentIndex + 1)}
-            className="absolute right-3 sm:right-6 z-20 p-3 sm:p-4 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white border border-white/10 backdrop-blur-md transition-all hover:scale-110 shadow-xl"
-            title="Next Photo (Right Arrow)"
+            aria-label="Next photo"
+            className="absolute right-2 sm:right-6 z-20 p-2.5 sm:p-3.5 rounded-full bg-black/60 hover:bg-black/90 text-white/80 hover:text-white border border-white/10 backdrop-blur-md transition-all shadow-xl"
+            title="Next (Right Arrow)"
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         )}
 
@@ -228,7 +233,7 @@ export const ImageGalleryLightbox = ({
         <div className="relative max-h-full max-w-full flex items-center justify-center">
           {isImageLoading && (
             <div className="absolute inset-0 flex items-center justify-center z-10">
-              <Loader2 className="w-10 h-10 animate-spin text-brand-400" />
+              <Loader2 className="w-8 h-8 animate-spin text-brand-400" />
             </div>
           )}
 
@@ -237,26 +242,25 @@ export const ImageGalleryLightbox = ({
               key={currentPhoto.id || currentPhoto.photoId || currentIndex}
               src={displayImageUrl}
               alt={currentPhoto.originalFilename}
-              className={`max-h-[75vh] max-w-[92vw] sm:max-w-[85vw] object-contain rounded-lg shadow-2xl transition-opacity duration-300 ${
+              className={`max-h-[68vh] sm:max-h-[75vh] max-w-[94vw] sm:max-w-[85vw] object-contain rounded-lg shadow-2xl transition-opacity duration-200 ${
                 isImageLoading ? 'opacity-30' : 'opacity-100'
               }`}
               onLoad={() => setIsImageLoading(false)}
               onError={() => setIsImageLoading(false)}
             />
           ) : (
-            <div className="text-center text-slate-400 p-8 glass-panel rounded-2xl">
-              <p className="text-sm">Preview not available yet.</p>
-              <p className="text-xs text-slate-500 mt-1">Status: {currentPhoto.uploadStatus}</p>
+            <div className="text-center text-slate-400 p-6 glass-panel rounded-2xl">
+              <p className="text-xs sm:text-sm">Preview not available yet.</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Bottom Filmstrip Carousel */}
-      <div className="px-4 py-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20">
+      <div className="px-3 py-2 bg-gradient-to-t from-black/90 via-black/60 to-transparent z-20">
         <div
           ref={filmstripRef}
-          className="flex items-center gap-2 overflow-x-auto py-1 px-2 no-scrollbar max-w-4xl mx-auto scroll-smooth"
+          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-1 px-1 no-scrollbar max-w-3xl mx-auto scroll-smooth"
         >
           {photos.map((photo, index) => {
             const isActive = index === currentIndex;
@@ -265,9 +269,10 @@ export const ImageGalleryLightbox = ({
                 key={photo.id || photo.photoId || index}
                 ref={isActive ? activeThumbRef : null}
                 onClick={() => onNavigate(index)}
-                className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all relative ${
+                aria-label={`Photo ${index + 1}`}
+                className={`flex-shrink-0 w-11 h-11 sm:w-13 sm:h-13 rounded-lg overflow-hidden border-2 transition-all relative ${
                   isActive
-                    ? 'border-brand-500 scale-105 shadow-lg shadow-brand-500/30'
+                    ? 'border-brand-500 scale-105 shadow-md shadow-brand-500/30'
                     : 'border-transparent opacity-50 hover:opacity-100'
                 }`}
                 title={photo.originalFilename}
@@ -293,27 +298,25 @@ export const ImageGalleryLightbox = ({
       {/* Delete Confirmation Dialog */}
       {deleteConfirmOpen && (
         <div className="fixed inset-0 z-60 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="glass-panel border border-white/10 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-up">
+          <div className="glass-panel border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-scale-up">
             <div className="flex items-center gap-3 text-rose-400">
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
-                <AlertTriangle className="w-6 h-6 text-rose-400" />
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <AlertTriangle className="w-5 h-5 text-rose-400" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Delete Photo?</h3>
+                <h3 className="text-sm sm:text-base font-bold text-white">Delete Photo?</h3>
                 <p className="text-xs text-slate-400">This action cannot be undone.</p>
               </div>
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              Are you sure you want to permanently delete{' '}
-              <strong className="text-white font-mono">{currentPhoto.originalFilename}</strong>? It will
-              be removed from cloud storage and facial recognition indexing.
+              Permanently delete <strong className="text-white">{currentPhoto.originalFilename}</strong> from this event gallery?
             </p>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 onClick={() => setDeleteConfirmOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
               >
                 Cancel
               </button>
@@ -322,9 +325,9 @@ export const ImageGalleryLightbox = ({
                   setDeleteConfirmOpen(false);
                   onDelete(currentPhoto);
                 }}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-lg shadow-rose-600/30"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition-colors shadow-md shadow-rose-600/30"
               >
-                Delete Photo
+                Delete
               </button>
             </div>
           </div>
@@ -333,3 +336,4 @@ export const ImageGalleryLightbox = ({
     </div>
   );
 };
+

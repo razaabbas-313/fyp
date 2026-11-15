@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, RefreshCw, Check, AlertCircle, X } from 'lucide-react';
+import { Camera, RefreshCw, Check, AlertCircle, X, Loader2 } from 'lucide-react';
 
 export const CameraCapture = ({ onCapture, onCancel }) => {
   const videoRef = useRef(null);
@@ -31,7 +31,7 @@ export const CameraCapture = ({ onCapture, onCancel }) => {
       setStartingCamera(false);
     } catch (err) {
       console.error('Camera access error:', err);
-      setCameraError('Unable to access camera. Please allow camera permissions or upload an existing photo.');
+      setCameraError('Unable to access camera. Please allow camera permissions or upload a photo from your device.');
       setStartingCamera(false);
     }
   };
@@ -85,23 +85,23 @@ export const CameraCapture = ({ onCapture, onCancel }) => {
   };
 
   return (
-    <div className="flex flex-col items-center w-full">
+    <div className="flex flex-col items-center w-full max-w-sm mx-auto">
       {cameraError ? (
         <div className="p-6 text-center space-y-4">
           <div className="w-12 h-12 mx-auto rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
             <AlertCircle className="w-6 h-6" />
           </div>
-          <p className="text-sm text-slate-300">{cameraError}</p>
-          <div className="flex justify-center gap-3">
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">{cameraError}</p>
+          <div className="flex justify-center gap-3 pt-2">
             <button
               onClick={startCamera}
-              className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white"
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
             >
               Try Again
             </button>
             <button
               onClick={onCancel}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
             >
               Cancel
             </button>
@@ -109,24 +109,24 @@ export const CameraCapture = ({ onCapture, onCancel }) => {
         </div>
       ) : photoPreview ? (
         <div className="flex flex-col items-center w-full space-y-5">
-          <div className="relative w-64 h-64 sm:w-80 sm:h-80 rounded-2xl overflow-hidden border-2 border-brand-500 shadow-2xl">
+          <div className="relative w-full max-w-[280px] sm:max-w-[320px] aspect-square rounded-2xl overflow-hidden border-2 border-brand-500 shadow-2xl">
             <img
               src={photoPreview}
               alt="Selfie preview"
               className="w-full h-full object-cover"
             />
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[280px] sm:max-w-[320px]">
             <button
               onClick={retakePhoto}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-3.5 h-3.5" />
               Retake
             </button>
             <button
               onClick={confirmPhoto}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-lg shadow-brand-500/25 transition-all"
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-md shadow-brand-500/20 transition-all"
             >
               <Check className="w-4 h-4" />
               Use This Selfie
@@ -135,10 +135,11 @@ export const CameraCapture = ({ onCapture, onCancel }) => {
         </div>
       ) : (
         <div className="flex flex-col items-center w-full space-y-5">
-          <div className="relative w-64 h-64 sm:w-80 sm:h-80 rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner">
+          <div className="relative w-full max-w-[280px] sm:max-w-[320px] aspect-square rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner">
             {startingCamera && (
-              <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">
-                Starting camera...
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-xs text-slate-400 gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-brand-400" />
+                <span>Starting camera...</span>
               </div>
             )}
             <video
@@ -149,23 +150,23 @@ export const CameraCapture = ({ onCapture, onCancel }) => {
               className="w-full h-full object-cover scale-x-[-1]"
             />
             {/* Target Face Oval Guide */}
-            <div className="absolute inset-0 border-2 border-dashed border-white/30 rounded-full m-8 pointer-events-none" />
+            <div className="absolute inset-0 border-2 border-dashed border-white/30 rounded-full m-6 pointer-events-none" />
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 w-full max-w-[280px] sm:max-w-[320px]">
             <button
               onClick={onCancel}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white"
+              className="flex-1 px-4 py-2.5 rounded-xl text-xs font-medium text-slate-400 hover:text-white bg-white/5 transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={capturePhoto}
               disabled={startingCamera}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 shadow-lg shadow-brand-500/25 disabled:opacity-50 transition-all hover:scale-105"
+              className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-brand-600 hover:bg-brand-500 shadow-md shadow-brand-500/25 disabled:opacity-50 transition-all"
             >
               <Camera className="w-4 h-4" />
-              Capture Photo
+              Snap Photo
             </button>
           </div>
         </div>
@@ -173,3 +174,4 @@ export const CameraCapture = ({ onCapture, onCancel }) => {
     </div>
   );
 };
+

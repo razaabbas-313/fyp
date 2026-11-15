@@ -48,7 +48,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
       }
 
       if (file.size > MAX_FILE_SIZE) {
-        errors.push(`"${file.name}": Exceeds 25MB maximum limit (${(file.size / (1024 * 1024)).toFixed(1)}MB)`);
+        errors.push(`"${file.name}": Exceeds 25MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB)`);
         continue;
       }
 
@@ -85,7 +85,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
     if (selectedFiles.length === 0 || isUploading) return;
 
     setIsUploading(true);
-    setOverallStatus('Requesting secure direct S3 upload URLs...');
+    setOverallStatus('Preparing upload...');
 
     try {
       // 1. Get presigned URLs for all files
@@ -93,7 +93,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
       const presignedUploads = presignRes?.data?.uploads || presignRes?.uploads || [];
 
       if (!presignedUploads || presignedUploads.length === 0) {
-        throw new Error('No presigned upload URLs returned from backend.');
+        throw new Error('Could not initialize uploads.');
       }
 
       // Initialize progress state
@@ -103,7 +103,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
       });
       setUploadProgress(initialProgress);
 
-      setOverallStatus('Uploading photos directly to AWS S3...');
+      setOverallStatus('Uploading photos...');
 
       // 2. Concurrency queue limit = 4
       const CONCURRENCY_LIMIT = 4;
@@ -135,17 +135,12 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
             }));
             successfulPhotoIds.push(item.photoId);
           } catch (err) {
-            console.error('Direct S3 upload failed for:', item.originalFilename, err);
+            console.error('Photo upload failed for:', item.originalFilename, err);
             let reason = 'Upload failed';
             if (err.message === 'Network Error' || !err.response) {
-              reason = 'CORS error / Network blocked';
+              reason = 'Network error';
             } else if (err.response?.status === 403) {
-              reason = 'AWS 403 Forbidden (Check IAM / Bucket permissions)';
-            } else if (err.response?.status === 404) {
-              reason = 'S3 Bucket not found';
-            } else if (typeof err.response?.data === 'string' && err.response.data.includes('<Code>')) {
-              const match = err.response.data.match(/<Code>(.*?)<\/Code>/);
-              if (match) reason = match[1];
+              reason = 'Permission denied';
             }
 
             setUploadProgress((prev) => ({
@@ -166,7 +161,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
 
       // 3. Confirm uploaded photos with backend
       if (successfulPhotoIds.length > 0) {
-        setOverallStatus('Confirming uploads and queueing AI facial indexing...');
+        setOverallStatus('Finalizing photo indexing...');
         await photoApi.confirmUploads(eventId, successfulPhotoIds);
 
         if (successfulPhotoIds.length === presignedUploads.length) {
@@ -176,14 +171,14 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
             onUploadComplete();
             resetState();
             onClose();
-          }, 1500);
+          }, 1200);
         } else {
-          setOverallStatus(`Partially completed: ${successfulPhotoIds.length} uploaded, ${presignedUploads.length - successfulPhotoIds.length} failed.`);
+          setOverallStatus(`Completed: ${successfulPhotoIds.length} uploaded, ${presignedUploads.length - successfulPhotoIds.length} failed.`);
           setIsUploading(false);
           onUploadComplete();
         }
       } else {
-        setOverallStatus('Upload failed: All photos failed to upload to AWS S3.');
+        setOverallStatus('Upload failed. Please check your internet connection.');
         setIsUploading(false);
       }
     } catch (err) {
@@ -206,15 +201,15 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Upload Event Photographs"
+      title="Upload Event Photos"
       maxWidth="max-w-2xl"
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Validation Warning Alert */}
         {validationWarning && (
-          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-start gap-2.5">
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div className="space-y-0.5 leading-relaxed">
+            <div className="leading-relaxed">
               <span className="font-semibold text-white">Notice: </span>
               {validationWarning}
             </div>
@@ -227,7 +222,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-white/20 hover:border-brand-500 rounded-2xl p-8 text-center cursor-pointer transition-colors bg-white/[0.02] hover:bg-brand-500/[0.04]"
+            className="border-2 border-dashed border-white/15 hover:border-brand-500/60 rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-colors bg-white/[0.01] hover:bg-brand-500/[0.03]"
           >
             <input
               ref={fileInputRef}
@@ -237,21 +232,21 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
               onChange={handleFileChange}
               className="hidden"
             />
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 mb-3">
-              <UploadCloud className="w-7 h-7" />
+            <div className="w-12 h-12 mx-auto rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400 mb-3">
+              <UploadCloud className="w-6 h-6" />
             </div>
             <p className="text-sm font-semibold text-white">
-              Drag & drop event photos here, or <span className="text-brand-400 underline">browse files</span>
+              Drag & drop photos here, or <span className="text-brand-400 underline">browse files</span>
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              Supports bulk upload (JPG, PNG, WebP) directly to encrypted AWS S3 storage
+              Supports JPG, PNG, and WebP (up to 25MB each)
             </p>
           </div>
         )}
 
         {/* Selected files preview list - before upload */}
         {selectedFiles.length > 0 && !hasUploadProgress && (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between text-xs text-slate-400">
               <span>{selectedFiles.length} file(s) selected</span>
               <button
@@ -261,22 +256,22 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
                 Clear all
               </button>
             </div>
-            <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
               {selectedFiles.map((file, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 border border-white/5 text-xs"
+                  className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-xs"
                 >
-                  <div className="flex items-center gap-2.5 truncate">
-                    <ImageIcon className="w-4 h-4 text-brand-400 shrink-0" />
+                  <div className="flex items-center gap-2 truncate pr-2">
+                    <ImageIcon className="w-3.5 h-3.5 text-brand-400 shrink-0" />
                     <span className="truncate text-slate-200">{file.name}</span>
                     <span className="text-slate-500 shrink-0">
-                      ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                      ({(file.size / (1024 * 1024)).toFixed(1)} MB)
                     </span>
                   </div>
                   <button
                     onClick={() => removeFile(idx)}
-                    className="p-1 text-slate-400 hover:text-rose-400"
+                    className="p-1 text-slate-400 hover:text-rose-400 shrink-0"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -288,7 +283,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
 
         {/* Upload Progress & Results UI */}
         {hasUploadProgress && (
-          <div className="space-y-4 py-2">
+          <div className="space-y-3 py-1">
             <div className="flex items-center justify-between text-xs font-medium">
               <span className={`flex items-center gap-2 ${hasFailures && !isUploading ? 'text-rose-400' : 'text-brand-400'}`}>
                 {isUploading ? (
@@ -310,41 +305,21 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
               <div
                 className={`h-full transition-all duration-300 ${
                   hasFailures && !isUploading
-                    ? 'bg-gradient-to-r from-rose-500 to-amber-500'
+                    ? 'bg-rose-500'
                     : 'bg-gradient-to-r from-brand-600 to-indigo-500'
                 }`}
                 style={{ width: `${overallPercentage}%` }}
               />
             </div>
 
-            {/* Diagnostic Alert Box on failure */}
-            {hasFailures && !isUploading && (
-              <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs space-y-2">
-                <div className="flex items-center gap-2 font-semibold text-rose-300">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
-                  <span>Direct S3 Upload Issue Detected ({failedItems.length} photo{failedItems.length > 1 ? 's' : ''} failed)</span>
-                </div>
-                <p className="text-slate-300 leading-relaxed">
-                  {failedItems.some((f) => f.error?.includes('CORS'))
-                    ? 'AWS S3 blocked the upload from your browser due to CORS policy. Ensure your S3 bucket has CORS enabled with AllowedOrigins: ["*"] and AllowedMethods: ["GET", "PUT", "POST", "HEAD"].'
-                    : failedItems.some((f) => f.error?.includes('403'))
-                    ? 'AWS returned 403 Forbidden. Verify that AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are added to your Render environment variables.'
-                    : 'Direct upload to AWS S3 failed. Check browser Developer Tools Console for network details.'}
-                </p>
-                <div className="pt-1 text-[11px] text-slate-400">
-                  💡 Follow <span className="font-mono text-brand-300">DEPLOYMENT.md</span> Section 3 to apply S3 CORS in AWS Console.
-                </div>
-              </div>
-            )}
-
             {/* Individual upload progress list */}
-            <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
               {Object.entries(uploadProgress).map(([id, info]) => (
                 <div
                   key={id}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 border border-white/5 text-xs"
+                  className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-xs"
                 >
-                  <div className="truncate max-w-[60%] text-slate-300">
+                  <div className="truncate max-w-[65%] text-slate-300">
                     {info.filename}
                   </div>
                   <div className="flex items-center gap-2">
@@ -357,16 +332,9 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
                       </span>
                     )}
                     {info.status === 'failed' && (
-                      <div className="flex items-center gap-1.5 text-right">
-                        {info.error && (
-                          <span className="text-[10px] text-rose-300/80 max-w-[160px] truncate" title={info.error}>
-                            {info.error}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1 text-rose-400 shrink-0 font-medium">
-                          <AlertCircle className="w-3.5 h-3.5" /> Failed
-                        </span>
-                      </div>
+                      <span className="flex items-center gap-1 text-rose-400 font-medium">
+                        <AlertCircle className="w-3.5 h-3.5" /> Failed
+                      </span>
                     )}
                     {info.status === 'queued' && (
                       <span className="text-slate-500">Queued</span>
@@ -379,11 +347,11 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
         )}
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
           <button
             onClick={handleClose}
             disabled={isUploading && overallPercentage < 100}
-            className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-white transition-colors"
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-colors"
           >
             {hasFailures && !isUploading ? 'Close' : 'Cancel'}
           </button>
@@ -391,9 +359,9 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
           {hasFailures && !isUploading && (
             <button
               onClick={resetState}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-slate-200 bg-white/10 hover:bg-white/15 transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-200 bg-white/10 hover:bg-white/15 transition-all"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-3.5 h-3.5" />
               Try Again
             </button>
           )}
@@ -402,7 +370,7 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
             <button
               onClick={startUpload}
               disabled={selectedFiles.length === 0}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-lg shadow-brand-500/25 disabled:opacity-50 transition-all"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 shadow-md shadow-brand-500/20 disabled:opacity-50 transition-all"
             >
               <UploadCloud className="w-4 h-4" />
               Upload {selectedFiles.length > 0 ? `(${selectedFiles.length}) Photos` : ''}
@@ -413,3 +381,4 @@ export const UploadModal = ({ isOpen, onClose, eventId, onUploadComplete }) => {
     </Modal>
   );
 };
+
