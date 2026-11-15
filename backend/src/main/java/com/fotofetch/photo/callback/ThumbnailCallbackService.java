@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +24,7 @@ public class ThumbnailCallbackService {
     private final PhotoRepository photoRepository;
     private final PhotoProcessingService photoProcessingService;
     private final ProcessedCallbackRepository processedCallbackRepository;
+    private final EntityManager entityManager;
 
     @Value("${fotofetch.processing.max-retries:3}")
     private int maxRetries;
@@ -55,7 +58,7 @@ public class ThumbnailCallbackService {
             throw new BadRequestException("photoId is required in callback payload");
         }
 
-        Optional<Photo> photoOpt = photoRepository.findById(request.getPhotoId());
+        Optional<Photo> photoOpt = photoRepository.findByIdForUpdate(request.getPhotoId());
         if (photoOpt.isEmpty()) {
             // Deleted photo acknowledged safely without recreating its database record
             log.warn("Thumbnail callback received for deleted or non-existent photo: {} (callbackId: {}, eventId: {}). Acknowledging without recreating record.",
@@ -69,6 +72,9 @@ public class ThumbnailCallbackService {
         }
 
         Photo photo = photoOpt.get();
+        if (entityManager.contains(photo)) {
+            entityManager.refresh(photo, LockModeType.PESSIMISTIC_WRITE);
+        }
 
         // 2. Validate Event ID matches
         if (request.getEventId() == null || !request.getEventId().equals(photo.getEvent().getId())) {

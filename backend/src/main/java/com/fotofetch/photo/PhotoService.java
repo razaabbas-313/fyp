@@ -15,6 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -29,6 +34,8 @@ public class PhotoService {
     private final RekognitionService rekognitionService;
     private final PhotoProcessingService photoProcessingService;
     private final com.fotofetch.guest.session.GuestSessionService guestSessionService;
+    private final TransactionTemplate transactionTemplate;
+    private final EntityManager entityManager;
 
     @org.springframework.beans.factory.annotation.Value("${fotofetch.thumbnail.lambda-enabled:true}")
     private boolean lambdaThumbnailEnabled = true;
@@ -88,17 +95,16 @@ public class PhotoService {
                 .build();
     }
 
-    @Transactional
     public void confirmUploads(UUID eventId, ConfirmUploadRequest request, User user) {
         Event event = eventService.getEventEntityByIdAndUser(eventId, user);
         String collectionId = event.getRekognitionCollectionId();
 
         int updatedCount = 0;
-        List<UUID> confirmedPhotoIds = new ArrayList<>();
 
         for (UUID photoId : request.getPhotoIds()) {
             log.info("Looking for photo: {} in event: {}", photoId, eventId);
 
+            // 1. Read-only pre-validation to fetch S3 key without holding row locks
             Optional<Photo> photoOptional = photoRepository.findByIdAndEventId(photoId, eventId);
 
             if (photoOptional.isEmpty()) {
@@ -106,96 +112,124 @@ public class PhotoService {
                 continue;
             }
 
-            Photo photo = photoOptional.get();
+            Photo readOnlyPhoto = photoOptional.get();
 
-            // Idempotency: Skip already UPLOADED photos to prevent duplicate Rekognition indexing
-            if (photo.getUploadStatus() == UploadStatus.UPLOADED) {
-                log.info("Photo {} already confirmed and UPLOADED, skipping duplicate confirm", photoId);
-                continue;
-            }
-
-            // Verify the object was actually uploaded to S3 and validate actual size via HeadObject
+            // 2. Perform S3 HeadObject operation OUTSIDE and BEFORE acquiring database row locks
             Optional<software.amazon.awssdk.services.s3.model.HeadObjectResponse> headOpt =
-                    s3StorageService.getObjectMetadata(photo.getOriginalS3Key());
+                    s3StorageService.getObjectMetadata(readOnlyPhoto.getOriginalS3Key());
 
-            if (headOpt.isEmpty()) {
-                log.warn("Photo {} not found in S3 at key: {}, marking FAILED", photoId, photo.getOriginalS3Key());
-                photo.setUploadStatus(UploadStatus.FAILED);
-                photo.setThumbnailStatus(ThumbnailStatus.FAILED);
-                photo.setIndexingStatus(IndexingStatus.FAILED);
-                photo.setLastProcessingError("Object not found in S3");
-                photoRepository.save(photo);
-                continue;
+            final boolean s3Exists = headOpt.isPresent();
+            final long actualSize = s3Exists && headOpt.get().contentLength() != null ? headOpt.get().contentLength() : 0L;
+            final boolean sizeExceeded = s3Exists && actualSize > 26214400L;
+
+            // 3. Acquire photo row lock (PESSIMISTIC_WRITE) and update state within a short, isolated transaction
+            Boolean updated = transactionTemplate.execute(status -> {
+                Optional<Photo> lockedOpt = photoRepository.findByIdForUpdate(photoId);
+                if (lockedOpt.isEmpty()) {
+                    log.error("PHOTO NOT FOUND during lock acquisition: {} for event: {}", photoId, eventId);
+                    return false;
+                }
+
+                Photo photo = lockedOpt.get();
+                if (entityManager.contains(photo)) {
+                    entityManager.refresh(photo, LockModeType.PESSIMISTIC_WRITE);
+                }
+
+                // Idempotency: Skip already UPLOADED photos, but ensure Rekognition is triggered if thumbnail is ready
+                if (photo.getUploadStatus() == UploadStatus.UPLOADED) {
+                    log.info("Photo {} already confirmed and UPLOADED, skipping duplicate confirm", photoId);
+                    if (lambdaThumbnailEnabled && photo.getThumbnailStatus() == ThumbnailStatus.COMPLETED
+                            && photo.getIndexingStatus() == IndexingStatus.PENDING) {
+                        log.info("Photo {} is already UPLOADED and thumbnail is COMPLETED. Scheduling missed Rekognition indexing.", photoId);
+                        scheduleRekognitionAsync(photo.getId(), collectionId);
+                    }
+                    return false;
+                }
+
+                if (!s3Exists) {
+                    log.warn("Photo {} not found in S3 at key: {}, marking FAILED", photoId, photo.getOriginalS3Key());
+                    photo.setUploadStatus(UploadStatus.FAILED);
+                    photo.setThumbnailStatus(ThumbnailStatus.FAILED);
+                    photo.setIndexingStatus(IndexingStatus.FAILED);
+                    photo.setLastProcessingError("Object not found in S3");
+                    photo.setProcessingUpdatedAt(LocalDateTime.now());
+                    photoRepository.saveAndFlush(photo);
+                    return false;
+                }
+
+                if (sizeExceeded) {
+                    log.error("Photo {} in S3 exceeds 25MB limit (actual: {} bytes). Marking FAILED.", photoId, actualSize);
+                    photo.setUploadStatus(UploadStatus.FAILED);
+                    photo.setThumbnailStatus(ThumbnailStatus.FAILED);
+                    photo.setIndexingStatus(IndexingStatus.FAILED);
+                    photo.setLastProcessingError("File size (" + actualSize + " bytes) exceeds maximum allowed limit of 25MB");
+                    photo.setProcessingUpdatedAt(LocalDateTime.now());
+                    photoRepository.saveAndFlush(photo);
+                    return false;
+                }
+
+                photo.setFileSize(actualSize);
+                photo.setUploadStatus(UploadStatus.UPLOADED);
+                photo.setProcessingUpdatedAt(LocalDateTime.now());
+                photoRepository.saveAndFlush(photo);
+
+                log.info("Upload status updated to UPLOADED under lock for photo: {} (thumbnailStatus: {}, indexingStatus: {})",
+                        photoId, photo.getThumbnailStatus(), photo.getIndexingStatus());
+
+                // Evaluate whether Rekognition indexing can be scheduled under lock
+                if (!lambdaThumbnailEnabled) {
+                    // When Lambda is disabled, Render handles both thumbnail generation and indexing locally
+                    scheduleLocalProcessingAsync(photo.getId(), collectionId);
+                } else {
+                    // When Lambda is enabled:
+                    // Only schedule if thumbnail callback already completed prior to confirm (or while confirm was waiting)
+                    if (photo.getThumbnailStatus() == ThumbnailStatus.COMPLETED && photo.getIndexingStatus() == IndexingStatus.PENDING) {
+                        log.info("Photo {} thumbnail already completed by Lambda. Scheduling Rekognition indexing.", photoId);
+                        scheduleRekognitionAsync(photo.getId(), collectionId);
+                    } else {
+                        log.info("Photo {} confirmed (UPLOADED). Awaiting Lambda thumbnail callback before Rekognition indexing (thumbnailStatus: {}).",
+                                photoId, photo.getThumbnailStatus());
+                    }
+                }
+
+                return true;
+            });
+
+            if (Boolean.TRUE.equals(updated)) {
+                updatedCount++;
             }
-
-            software.amazon.awssdk.services.s3.model.HeadObjectResponse head = headOpt.get();
-            long actualSize = head.contentLength() != null ? head.contentLength() : 0L;
-
-            // Reject oversized objects (> 25MB = 26,214,400 bytes)
-            if (actualSize > 26214400L) {
-                log.error("Photo {} in S3 exceeds 25MB limit (actual: {} bytes). Marking FAILED.", photoId, actualSize);
-                photo.setUploadStatus(UploadStatus.FAILED);
-                photo.setThumbnailStatus(ThumbnailStatus.FAILED);
-                photo.setIndexingStatus(IndexingStatus.FAILED);
-                photo.setLastProcessingError("File size (" + actualSize + " bytes) exceeds maximum allowed limit of 25MB");
-                photoRepository.save(photo);
-                continue;
-            }
-
-            photo.setFileSize(actualSize);
-            log.info("Photo found: {}. Actual size: {} bytes. Current upload status: {}",
-                    photo.getId(), actualSize, photo.getUploadStatus());
-
-            photo.setUploadStatus(UploadStatus.UPLOADED);
-            photoRepository.save(photo);
-
-            log.info("Upload status updated to UPLOADED for photo: {}", photoId);
-            updatedCount++;
-            confirmedPhotoIds.add(photo.getId());
         }
-
-        photoRepository.flush();
 
         log.info(
                 "Upload confirmation finished. Requested: {}, Successfully updated: {}",
                 request.getPhotoIds().size(),
                 updatedCount
         );
+    }
 
-        List<UUID> photosToProcessNow = new ArrayList<>();
-        if (!lambdaThumbnailEnabled) {
-            // When Lambda is disabled, Render handles both thumbnail generation and indexing locally
-            photosToProcessNow.addAll(confirmedPhotoIds);
+    private void scheduleRekognitionAsync(UUID photoId, String collectionId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    photoProcessingService.processPhotoAsync(photoId, collectionId);
+                }
+            });
         } else {
-            // When Lambda is enabled, Render skips immediate thumbnail generation.
-            // Only schedule if the thumbnail callback already completed prior to confirm (callback-before-confirm race)
-            for (UUID confirmedId : confirmedPhotoIds) {
-                Photo p = photoRepository.findById(confirmedId).orElse(null);
-                if (p != null && p.getThumbnailStatus() == ThumbnailStatus.COMPLETED && p.getIndexingStatus() == IndexingStatus.PENDING) {
-                    photosToProcessNow.add(confirmedId);
-                    log.info("Photo {} thumbnail already completed by Lambda. Scheduling Rekognition indexing.", confirmedId);
-                } else {
-                    log.info("Photo {} confirmed (UPLOADED). Awaiting Lambda thumbnail callback before Rekognition indexing.", confirmedId);
-                }
-            }
+            photoProcessingService.processPhotoAsync(photoId, collectionId);
         }
+    }
 
-        // Ensure asynchronous processing starts strictly AFTER the database transaction commits
-        if (!photosToProcessNow.isEmpty()) {
-            if (TransactionSynchronizationManager.isActualTransactionActive()) {
-                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                    @Override
-                    public void afterCommit() {
-                        for (UUID photoIdToProcess : photosToProcessNow) {
-                            photoProcessingService.processPhotoAsync(photoIdToProcess, collectionId);
-                        }
-                    }
-                });
-            } else {
-                for (UUID photoIdToProcess : photosToProcessNow) {
-                    photoProcessingService.processPhotoAsync(photoIdToProcess, collectionId);
+    private void scheduleLocalProcessingAsync(UUID photoId, String collectionId) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    photoProcessingService.processPhotoAsync(photoId, collectionId);
                 }
-            }
+            });
+        } else {
+            photoProcessingService.processPhotoAsync(photoId, collectionId);
         }
     }
 

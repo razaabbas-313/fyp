@@ -21,6 +21,10 @@ public interface PhotoRepository extends JpaRepository<Photo, UUID> {
     @Query("SELECT COUNT(p) FROM Photo p WHERE p.event.user.id = :userId")
     long countTotalPhotosByUserId(@Param("userId") UUID userId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Photo p WHERE p.id = :id")
+    Optional<Photo> findByIdForUpdate(@Param("id") UUID id);
+
     List<Photo> findByUploadStatusAndThumbnailStatusIn(UploadStatus uploadStatus, Collection<ThumbnailStatus> thumbnailStatuses);
 
     @Query("SELECT p FROM Photo p JOIN FETCH p.event WHERE p.uploadStatus = com.fotofetch.photo.UploadStatus.UPLOADED " +
@@ -46,6 +50,17 @@ public interface PhotoRepository extends JpaRepository<Photo, UUID> {
             @Param("stuckBefore") java.time.LocalDateTime stuckBefore,
             @Param("maxRetries") int maxRetries,
             @Param("lambdaEnabled") boolean lambdaEnabled);
+
+    @Query("SELECT p FROM Photo p JOIN FETCH p.event WHERE p.uploadStatus = com.fotofetch.photo.UploadStatus.UPLOADED " +
+           "AND p.thumbnailStatus = com.fotofetch.photo.ThumbnailStatus.PENDING " +
+           "AND (p.processingUpdatedAt < :orphanedBefore OR (p.processingUpdatedAt IS NULL AND p.createdAt < :orphanedBefore)) " +
+           "AND (p.nextRetryAt IS NULL OR p.nextRetryAt <= :now) " +
+           "AND p.processingAttempts < :maxRetries " +
+           "ORDER BY p.createdAt ASC")
+    List<Photo> findOrphanedPendingPhotos(
+            @Param("now") java.time.LocalDateTime now,
+            @Param("orphanedBefore") java.time.LocalDateTime orphanedBefore,
+            @Param("maxRetries") int maxRetries);
 
     @org.springframework.transaction.annotation.Transactional
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)

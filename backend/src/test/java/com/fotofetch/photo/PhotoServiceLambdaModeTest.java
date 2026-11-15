@@ -77,11 +77,14 @@ class PhotoServiceLambdaModeTest {
         eventRepository.deleteAll();
         userRepository.deleteAll();
 
-        when(s3StorageService.getObjectMetadata(anyString())).thenReturn(
+        when(s3StorageService.getObjectMetadata(argThat(key -> key != null && key.contains("/originals/")))).thenReturn(
                 Optional.of(software.amazon.awssdk.services.s3.model.HeadObjectResponse.builder()
                         .contentLength(1024000L)
                         .contentType("image/jpeg")
                         .build())
+        );
+        when(s3StorageService.getObjectMetadata(argThat(key -> key != null && key.contains("/thumbnails/")))).thenReturn(
+                Optional.empty()
         );
 
         testUser = userRepository.save(User.builder()
