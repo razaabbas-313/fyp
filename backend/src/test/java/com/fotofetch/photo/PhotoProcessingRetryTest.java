@@ -285,7 +285,7 @@ class PhotoProcessingRetryTest {
                 .isNew(true)
                 .build());
 
-        List<Photo> recoverable = photoRepository.findRecoverablePhotos(now, now.minusMinutes(5), 3);
+        List<Photo> recoverable = photoRepository.findRecoverablePhotos(now, now.minusMinutes(5), 3, false);
 
         assertEquals(1, recoverable.size());
         assertEquals(readyPhoto.getId(), recoverable.get(0).getId());

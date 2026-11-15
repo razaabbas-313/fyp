@@ -130,11 +130,15 @@ public class PhotoProcessingService {
 
         // 2. AWS Rekognition face indexing USING THUMBNAIL S3 KEY (only if not already completed)
         if (!indexingDone) {
-            try {
-                photo.setIndexingStatus(IndexingStatus.INDEXING);
-                photo.setProcessingUpdatedAt(LocalDateTime.now());
-                photo = photoRepository.saveAndFlush(photo);
+            int claimedIndexing = photoRepository.claimPhotoForIndexing(photoId, LocalDateTime.now(), stuckBefore);
+            if (claimedIndexing == 0) {
+                log.info("Photo {} Rekognition indexing is already claimed or in-flight by another worker. Skipping duplicate indexing.", photoId);
+                return;
+            }
 
+            photo = photoRepository.findById(photoId).orElseThrow();
+
+            try {
                 // Prevent duplicate faces in Rekognition collection by cleaning up prior face IDs if retrying
                 try {
                     rekognitionService.deleteFacesForPhotos(collectionId, List.of(photo.getId()));

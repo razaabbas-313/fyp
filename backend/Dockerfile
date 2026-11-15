@@ -33,4 +33,4 @@ ENV PORT=8080
 EXPOSE ${PORT}
 
 # Production JVM memory constraints tailored for Render 512MB container limit
-ENTRYPOINT ["sh", "-c", "java -XX:+UseContainerSupport -XX:+UseSerialGC -Xms96m -Xmx224m -XX:MaxMetaspaceSize=112m -Xss384k -XX:+ExitOnOutOfMemoryError -Dserver.port=${PORT} -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java -XX:+UseContainerSupport -XX:+UseSerialGC -Xms96m -Xmx192m -XX:MaxMetaspaceSize=160m -Xss384k -XX:+ExitOnOutOfMemoryError -Dserver.port=${PORT} -jar app.jar"]

@@ -23,18 +23,29 @@ public interface PhotoRepository extends JpaRepository<Photo, UUID> {
 
     List<Photo> findByUploadStatusAndThumbnailStatusIn(UploadStatus uploadStatus, Collection<ThumbnailStatus> thumbnailStatuses);
 
-    @Query("SELECT p FROM Photo p WHERE p.uploadStatus = com.fotofetch.photo.UploadStatus.UPLOADED " +
-           "AND (p.thumbnailStatus IN (com.fotofetch.photo.ThumbnailStatus.PENDING, com.fotofetch.photo.ThumbnailStatus.FAILED) " +
-           "     OR p.indexingStatus IN (com.fotofetch.photo.IndexingStatus.PENDING, com.fotofetch.photo.IndexingStatus.FAILED) " +
-           "     OR (p.thumbnailStatus = com.fotofetch.photo.ThumbnailStatus.PROCESSING AND p.processingUpdatedAt < :stuckBefore) " +
-           "     OR (p.indexingStatus = com.fotofetch.photo.IndexingStatus.INDEXING AND p.processingUpdatedAt < :stuckBefore)) " +
+    @Query("SELECT p FROM Photo p JOIN FETCH p.event WHERE p.uploadStatus = com.fotofetch.photo.UploadStatus.UPLOADED " +
+           "AND (" +
+           // 1. Recover Rekognition indexing when thumbnail is already completed
+           "     (p.thumbnailStatus = com.fotofetch.photo.ThumbnailStatus.COMPLETED " +
+           "      AND (p.indexingStatus = com.fotofetch.photo.IndexingStatus.PENDING " +
+           "           OR p.indexingStatus = com.fotofetch.photo.IndexingStatus.FAILED " +
+           "           OR (p.indexingStatus = com.fotofetch.photo.IndexingStatus.INDEXING AND p.processingUpdatedAt < :stuckBefore))) " +
+           // 2. Recover explicitly failed thumbnail jobs (e.g. Lambda returned FAILED callback)
+           "     OR (p.thumbnailStatus = com.fotofetch.photo.ThumbnailStatus.FAILED) " +
+           // 3. When Lambda is DISABLED (:lambdaEnabled = false), also recover timeout-based PENDING and PROCESSING thumbnails (original behavior)
+           "     OR (:lambdaEnabled = false AND p.thumbnailStatus = com.fotofetch.photo.ThumbnailStatus.PENDING " +
+           "         AND (p.processingUpdatedAt < :stuckBefore OR (p.processingUpdatedAt IS NULL AND p.createdAt < :stuckBefore))) " +
+           "     OR (:lambdaEnabled = false AND p.thumbnailStatus = com.fotofetch.photo.ThumbnailStatus.PROCESSING " +
+           "         AND p.processingUpdatedAt < :stuckBefore)" +
+           ") " +
            "AND (p.nextRetryAt IS NULL OR p.nextRetryAt <= :now) " +
            "AND p.processingAttempts < :maxRetries " +
            "ORDER BY p.createdAt ASC")
     List<Photo> findRecoverablePhotos(
             @Param("now") java.time.LocalDateTime now,
             @Param("stuckBefore") java.time.LocalDateTime stuckBefore,
-            @Param("maxRetries") int maxRetries);
+            @Param("maxRetries") int maxRetries,
+            @Param("lambdaEnabled") boolean lambdaEnabled);
 
     @org.springframework.transaction.annotation.Transactional
     @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
@@ -46,6 +57,19 @@ public interface PhotoRepository extends JpaRepository<Photo, UUID> {
            "     OR p.processingUpdatedAt IS NULL " +
            "     OR p.processingUpdatedAt < :stuckBefore)")
     int claimPhotoForProcessing(
+            @Param("photoId") UUID photoId,
+            @Param("now") java.time.LocalDateTime now,
+            @Param("stuckBefore") java.time.LocalDateTime stuckBefore);
+
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
+    @Query("UPDATE Photo p SET p.indexingStatus = com.fotofetch.photo.IndexingStatus.INDEXING, " +
+           "p.processingUpdatedAt = :now " +
+           "WHERE p.id = :photoId " +
+           "AND (p.indexingStatus = com.fotofetch.photo.IndexingStatus.PENDING " +
+           "     OR p.indexingStatus = com.fotofetch.photo.IndexingStatus.FAILED " +
+           "     OR (p.indexingStatus = com.fotofetch.photo.IndexingStatus.INDEXING AND p.processingUpdatedAt < :stuckBefore))")
+    int claimPhotoForIndexing(
             @Param("photoId") UUID photoId,
             @Param("now") java.time.LocalDateTime now,
             @Param("stuckBefore") java.time.LocalDateTime stuckBefore);

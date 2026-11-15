@@ -44,6 +44,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/health", "/health", "/").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/internal/photos/thumbnail-callback").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/events/**").authenticated()
@@ -76,7 +77,8 @@ public class SecurityConfig {
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList(
                 "Authorization", "Content-Type", "Accept", "X-Requested-With",
-                "X-Guest-Session", "Origin", "Access-Control-Request-Method",
+                "X-Guest-Session", "X-FotoFetch-Signature", "X-FotoFetch-Timestamp",
+                "Origin", "Access-Control-Request-Method",
                 "Access-Control-Request-Headers", "Range"
         ));
         configuration.setExposedHeaders(Arrays.asList("Content-Disposition", "Content-Type", "Content-Length"));
